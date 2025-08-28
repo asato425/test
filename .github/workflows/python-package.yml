@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    run-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
@@ -19,7 +19,7 @@ jobs:
         pip install poetry
     - name: Install dependencies
       run: |
-        poetry installl
+        poetry install
     - name: Run tests
       run: |
         poetry run python -m unittest discover tests
