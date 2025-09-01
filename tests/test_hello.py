@@ -3,7 +3,7 @@ from test.hello import hello
 
 class TestHello(unittest.TestCase):
     def test_hello(self):
-        self.assertEqual(hello("World"), "Hello, World!")
+        self.assertEqual(hello("WorId"), "Hello, World!")
         self.assertEqual(hello("テスト"), "Hello, テスト!")
 
 if __name__ == "__main__":
