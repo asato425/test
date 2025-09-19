@@ -1,0 +1,50 @@
+```yaml
+name: CI
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # リポジトリをチェックアウトします
+      - name: Checkout code
+        uses: actions/checkout@d1e1c1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1
+
+      # Pythonをセットアップします
+      - name: Set up Python
+        uses: actions/setup-python@v2.4.0
+        with:
+          python-version: '3.9'
+
+      # 依存関係をインストールします
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry install
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      # リポジトリをチェックアウトします
+      - name: Checkout code
+        uses: actions/checkout@d1e1c1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1
+
+      # Pythonをセットアップします
+      - name: Set up Python
+        uses: actions/setup-python@v2.4.0
+        with:
+          python-version: '3.9'
+
+      # テストを実行します
+      - name: Run tests
+        run: |
+          poetry run pytest
+
+      # コードスタイルをチェックします
+      - name: Lint code
+        run: |
+          poetry run flake8 .
+```
