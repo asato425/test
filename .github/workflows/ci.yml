@@ -1,67 +1,60 @@
-```yaml
 name: Python CI
 
+# ワークフローのトリガー設定
+# workflow_dispatchイベントで手動実行を可能にする
+# pushやpull_requestイベントを追加することで自動実行も可能
 on:
   workflow_dispatch:
-    # 他のイベントを追加する場合
-    # push:
-    #   branches: [main]
-    # pull_request:
-    #   branches: [main]
-
-permissions:
-  contents: read
 
 jobs:
   build:
-    name: Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # ジョブの権限設定
     permissions:
       contents: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-      - name: Install dependencies
-        run: |
-          pip install poetry
-          poetry install --no-interaction --no-root
-      - name: Build
-        run: poetry build
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: dist
-          path: dist/*
+      actions: read
 
-  test:
-    name: Test
-    needs: build
+    # ジョブのタイムアウト設定
+    timeout-minutes: 10
+
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        # コードをチェックアウトするステップ
+        uses: actions/checkout@v2
         with:
           persist-credentials: false
+
       - name: Set up Python
-        uses: actions/setup-python@v4
+        # Pythonのセットアップステップ
+        uses: actions/setup-python@v2
         with:
-          python-version: "3.11"
+          python-version: '3.9'
+
       - name: Install dependencies
+        # 依存関係をインストールするステップ
         run: |
           pip install poetry
-          poetry install --no-interaction --no-root
-      - name: Test with pytest
+          poetry install
+
+      - name: Run tests
+        # テストを実行するステップ
         run: |
-          pip install pytest
-          pytest tests
-```
+          set -e
+          poetry run pytest tests/
+
+  # ビルドジョブを追加することも可能
+  # build:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Build project
+  #       run: |
+  #         echo "Building the project..." 
+  #         # ビルドコマンドをここに追加
+  #         
+  #     - name: Package project
+  #       run: |
+  #         echo "Packaging the project..."
+  #         # パッケージングコマンドをここに追加
+  
+# 追加のジョブやステップを必要に応じて記述してください。
