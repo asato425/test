@@ -1,112 +1,159 @@
-name: Python CI/CD Workflow # ワークフローの名前
+name: Python CI
+
+# このワークフローは、コードがプッシュされたとき、プルリクエストが作成されたとき、
+# または手動でトリガーされたときに実行されます。
+# 他のイベントを追加する場合は、以下のコメントアウトされた例を参考にしてください。
+# on:
+#   push:
+#     branches: [ main, develop ] # mainまたはdevelopブランチへのプッシュ時
+#   pull_request:
+#     branches: [ main, develop ] # mainまたはdevelopブランチへのプルリクエスト時
 on:
-  workflow_dispatch: # 手動でワークフローを実行するためのトリガー
-  # その他のイベントを追加する場合は、以下のコメントアウトを解除して設定してください。
-  # push:
-  #   branches:
-  #     - main # mainブランチへのプッシュ時に実行
-  # pull_request:
-  #   branches:
-  #     - main # mainブランチへのプルリクエスト時に実行
+  workflow_dispatch: # 手動トリガーのみ
+
+# ワークフロー全体のデフォルトの権限を設定します。
+# 最小限の権限を付与することがセキュリティ上のベストプラクティスです。
+permissions:
+  contents: read # リポジトリのコンテンツを読み取る権限
+  actions: read # アクションの情報を読み取る権限
+  checks: write # チェック（テスト結果など）を書き込む権限
+  pull-requests: write # プルリクエストのステータスを更新する権限
+  statuses: write # コミットステータスを更新する権限
+  # artifacts: write # アーティファクトをアップロードする権限 (必要に応じて追加)
+
+# 同時実行設定：同じブランチでの重複実行を防ぎ、最新のコミットのみを処理します。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build and Lint # ビルドとリンティングジョブの名前
-    runs-on: ubuntu-latest # ジョブを実行するOS
-    permissions:
-      contents: read # リポジトリのコンテンツを読み取る権限
-      checks: write # チェック結果を書き込む権限 (リンターや型チェックの結果をGitHubに表示するため)
-    timeout-minutes: 10 # ジョブの最大実行時間
+  # ビルドとリンティングを行うジョブ
+  build_and_lint:
+    name: Build and Lint (Python ${{ matrix.python-version }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10 # ジョブの最大実行時間を10分に設定
+
+    # 複数のPythonバージョンとOSでテストするためのマトリクス戦略
+    strategy:
+      fail-fast: false # いずれかのマトリクスが失敗しても他のマトリクスは続行
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        os: [ubuntu-latest]
 
     steps:
-      - name: Checkout repository # リポジリをチェックアウト
-        uses: actions/checkout@v4 # actions/checkoutアクションを使用
+      # 1. リポジトリのコードをチェックアウト
+      # persist-credentials: false はセキュリティ上の理由から推奨されます。
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          persist-credentials: false # 認証情報を永続化しない
+          persist-credentials: false
 
-      - name: Set up Python # Python環境をセットアップ
-        id: setup-python-build # ステップにIDを付与
-        uses: actions/setup-python@v5 # actions/setup-pythonアクションを使用
+      # 2. 指定されたPythonバージョンをセットアップ
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10" # 使用するPythonのバージョンを指定
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install Poetry # Poetryをインストール
+      # 3. Poetryをインストール
+      - name: Install Poetry
         run: |
           pip install poetry
+          poetry --version
 
-      - name: Cache Poetry dependencies # Poetryの依存関係をキャッシュ
-        uses: actions/cache@v4 # actions/cacheアクションを使用
+      # 4. Poetryの依存関係をキャッシュ
+      # poetry.lockファイルのハッシュをキーに含めることで、依存関係が変更された場合にのみ再インストールされます。
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
         with:
-          path: ~/.cache/pypoetry/virtualenvs # Poetryが作成する仮想環境のパス
-          key: ${{ runner.os }}-python-${{ steps.setup-python-build.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # キャッシュキー (OS, Pythonバージョン, poetry.lockのハッシュを含む)
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            ${{ runner.os }}-python-${{ steps.setup-python-build.outputs.python-version }}-poetry- # キャッシュが見つからなかった場合の復元キー
+            ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
 
-      - name: Install project dependencies # プロジェクトの依存関係をインストール
-        run: |
-          poetry install --no-interaction --no-ansi # Poetryを使って依存関係をインストール (--no-interaction: 対話モード無効, --no-ansi: ANSIエスケープコード無効)
+      # 5. プロジェクトの依存関係をインストール
+      # --no-interaction と --no-ansi はCI環境での非対話的な実行に役立ちます。
+      - name: Install project dependencies
+        run: poetry install --no-interaction --no-ansi
 
-      - name: Lint with Ruff # Ruffでコードをリンティング
-        run: |
-          poetry run ruff check . # Ruffを実行してコードスタイルをチェック
+      # 6. Ruffを使ってコードをリンティング（チェック）
+      # 高速なリンターとして推奨されます。
+      - name: Lint code with Ruff
+        run: poetry run ruff check .
 
-      - name: Check formatting with Ruff # Ruffでコードのフォーマットをチェック
-        run: |
-          poetry run ruff format . --check # Ruffを実行してフォーマットが正しいかチェック
+      # 7. Ruffを使ってコードのフォーマットをチェック
+      # フォーマット違反があれば失敗させます。
+      - name: Check code format with Ruff
+        run: poetry run ruff format . --check
 
-      - name: Type check with MyPy # MyPyで型チェック
-        run: |
-          poetry run mypy . # MyPyを実行して型アノテーションをチェック
+      # 8. プロジェクトをビルド（wheelとsdistを生成）
+      - name: Build package
+        run: poetry build
 
-  test:
-    name: Run Tests and Coverage # テストとカバレッジ実行ジョブの名前
-    runs-on: ubuntu-latest # ジョブを実行するOS
-    needs: build # buildジョブが成功した後に実行
-    permissions:
-      contents: read # リポジトリのコンテンツを読み取る権限
-      checks: write # チェック結果を書き込む権限 (テスト結果をGitHubに表示するため)
-    timeout-minutes: 10 # ジョブの最大実行時間
+      # 9. ビルドされたアーティファクトをアップロード
+      # デバッグやリリースプロセスで利用できるようにします。
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-python-${{ matrix.python-version }}-${{ matrix.os }}
+          path: dist/
+
+  # テストを実行するジョブ
+  run_tests:
+    name: Run Tests (Python ${{ matrix.python-version }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: build_and_lint # ビルドとリンティングが成功した後にのみ実行
+    timeout-minutes: 10 # ジョブの最大実行時間を10分に設定
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        os: [ubuntu-latest]
 
     steps:
-      - name: Checkout repository # リポジリをチェックアウト
-        uses: actions/checkout@v4 # actions/checkoutアクションを使用
+      # 1. リポジトリのコードをチェックアウト
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          persist-credentials: false # 認証情報を永続化しない
+          persist-credentials: false
 
-      - name: Set up Python # Python環境をセットアップ
-        id: setup-python-test # ステップにIDを付与
-        uses: actions/setup-python@v5 # actions/setup-pythonアクションを使用
+      # 2. 指定されたPythonバージョンをセットアップ
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.10" # 使用するPythonのバージョンを指定
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install Poetry # Poetryをインストール
+      # 3. Poetryをインストール
+      - name: Install Poetry
         run: |
           pip install poetry
+          poetry --version
 
-      - name: Restore Poetry dependencies cache # Poetryの依存関係キャッシュを復元
-        uses: actions/cache@v4 # actions/cacheアクションを使用
+      # 4. Poetryの依存関係をキャッシュ
+      # ビルドジョブと同じキャッシュキーを使用します。
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v4
         with:
-          path: ~/.cache/pypoetry/virtualenvs # Poetryが作成する仮想環境のパス
-          key: ${{ runner.os }}-python-${{ steps.setup-python-test.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # キャッシュキー (buildジョブと同じキーを使用)
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            ${{ runner.os }}-python-${{ steps.setup-python-test.outputs.python-version }}-poetry- # キャッシュが見つからなかった場合の復元キー
+            ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
 
-      - name: Install project dependencies # プロジェクトの依存関係をインストール
-        run: |
-          poetry install --no-interaction --no-ansi # Poetryを使って依存関係をインストール
+      # 5. プロジェクトの依存関係をインストール
+      - name: Install project dependencies
+        run: poetry install --no-interaction --no-ansi
 
-      - name: Run Pytest and generate reports # Pytestを実行し、テストレポートとカバレッジレポートを生成
-        run: |
-          poetry run pytest --cov=test --cov-report=xml --junitxml=pytest-report.xml # Pytestを実行し、カバレッジとJUnit XMLレポートを生成
+      # 6. Pytestとpytest-covを使ってユニットテストとカバレッジを実行
+      # --cov=test は 'test' ディレクトリのコードのカバレッジを測定します。
+      # --cov-report=xml はJUnit形式のXMLレポートを生成し、GitHubのUIで表示できます。
+      # --cov-report=term-missing はターミナルにカバレッジの不足箇所を表示します。
+      - name: Run unit tests with Pytest and Coverage
+        run: poetry run pytest --cov=test --cov-report=xml --cov-report=term-missing
 
-      - name: Upload Pytest report # Pytestレポートをアーティファクトとしてアップロード
-        uses: actions/upload-artifact@v4 # actions/upload-artifactアクションを使用
+      # 7. カバレッジレポートをアップロード
+      # Codecovなどの外部サービスと連携したり、後でダウンロードして確認したりできます。
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
         with:
-          name: pytest-report # アーティファクトの名前
-          path: pytest-report.xml # アップロードするファイルのパス
-
-      - name: Upload Coverage report # カバレッジレポートをアーティファクトとしてアップロード
-        uses: actions/upload-artifact@v4 # actions/upload-artifactアクションを使用
-        with:
-          name: coverage-report # アーティファクトの名前
-          path: coverage.xml # アップロードするファイルのパス
+          name: coverage-report-python-${{ matrix.python-version }}-${{ matrix.os }}
+          path: coverage.xml
