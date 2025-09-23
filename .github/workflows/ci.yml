@@ -1,60 +1,128 @@
-name: Python CI
-
-# ワークフローのトリガー設定
-# workflow_dispatchイベントで手動実行を可能にする
-# pushやpull_requestイベントを追加することで自動実行も可能
-on:
-  workflow_dispatch:
+name: CI - Python (poetry)
+# ワークフローのトリガーは workflow_dispatch のみ（必要に応じて push や pull_request を追加できます）
+on: 
+  workflow_dispatch: {}
+# 最小権限に設定（必要に応じてジョブ単位でさらに絞る）
+permissions:
+  contents: read
+# 同一ブランチでの重複実行を防ぐ設定
+concurrency:
+  group: "ci-${{ github.repository }}-${{ github.ref }}"
+  cancel-in-progress: true
 
 jobs:
+  # build ジョブ: パッケージをビルドしてアーティファクトとして保存します
   build:
-    # ジョブの権限設定
+    name: build-wheel-and-sdist
+    # ジョブ単位での最小権限（ソース参照のみ）
     permissions:
       contents: read
-      actions: read
-
-    # ジョブのタイムアウト設定
-    timeout-minutes: 10
-
+    # ビルドは長めにタイムアウトを設定
+    timeout-minutes: 30
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        # コードをチェックアウトするステップ
-        uses: actions/checkout@v2
+      - name: checkout-source
+        # コードをチェックアウトします。persist-credentials=false にして GITHUB_TOKEN の露出を抑えます
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: Set up Python
-        # Pythonのセットアップステップ
-        uses: actions/setup-python@v2
+      - name: setup-python
+        # 特定のバージョンを明示（ビルドは最新の安定系を想定）
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
-
-      - name: Install dependencies
-        # 依存関係をインストールするステップ
+          python-version: '3.13'
+      - name: cache-poetry-and-pip
+        # Poetry と pip のキャッシュを復元します。poetry.lock のハッシュをキーに含めることで依存変更時に再インストールされます
+        uses: actions/cache@v4
+        with:
+          path:
+            - "${{ runner.temp }}/.poetry_cache"
+            - ~/.cache/pip
+          key: "poetry-${{ runner.os }}-3.13-${{ hashFiles('**/poetry.lock') }}"
+      - name: install-poetry-and-deps
+        # Poetry をインストールし、CI では仮想環境を作らず system にインストールする設定で依存をインストールします
         run: |
-          pip install poetry
-          poetry install
-
-      - name: Run tests
-        # テストを実行するステップ
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade poetry
+          # CI 環境では仮想環境を作らず runner 環境へインストール（必要に応じて変更）
+          poetry config virtualenvs.create false
+          # dev 依存も入れる（テストやlintが dev-deps にある場合）
+          poetry install --no-interaction --no-ansi
+        env:
+          POETRY_CACHE_DIR: "${{ runner.temp }}/.poetry_cache"
+      - name: run-linters
+        # 軽量な静的解析を行い、スタイル違反で失敗させる（プロジェクトに linters が無い場合はスキップされる）
         run: |
-          set -e
-          poetry run pytest tests/
+          if command -v ruff >/dev/null 2>&1; then
+            ruff check .
+          else
+            # ruff が無ければ pip で入れて実行（poetry に dev-deps が無いケースをカバー）
+            python -m pip install ruff
+            ruff check .
+          fi
+      - name: build-distributions
+        # wheel と sdist を生成して artifacts にアップロードします
+        run: |
+          python -m pip install build
+          python -m build --sdist --wheel --outdir dist
+      - name: upload-artifact-distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
 
-  # ビルドジョブを追加することも可能
-  # build:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Build project
-  #       run: |
-  #         echo "Building the project..." 
-  #         # ビルドコマンドをここに追加
-  #         
-  #     - name: Package project
-  #       run: |
-  #         echo "Packaging the project..."
-  #         # パッケージングコマンドをここに追加
-  
-# 追加のジョブやステップを必要に応じて記述してください。
+  # test ジョブ: マトリクスで複数 Python バージョン上でユニットテスト（カバレッジ、JUnit レポート）を実行します
+  test:
+    name: unit-tests-matrix
+    permissions:
+      contents: read
+    needs: build
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - name: checkout-source
+        # テストだけなので persist-credentials=false にして権限露出を抑えます
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: setup-python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "${{ matrix.python-version }}"
+      - name: cache-poetry-and-pip
+        # テストジョブでも同様にキャッシュを使い、poetry.lock のハッシュをキーに含めます
+        uses: actions/cache@v4
+        with:
+          path:
+            - "${{ runner.temp }}/.poetry_cache"
+            - ~/.cache/pip
+          key: "poetry-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}"
+      - name: install-poetry-and-deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade poetry
+          poetry config virtualenvs.create false
+          poetry install --no-interaction --no-ansi
+        env:
+          POETRY_CACHE_DIR: "${{ runner.temp }}/.poetry_cache"
+      - name: run-unit-tests
+        # pytest を実行し、JUnit XML と coverage xml を出力します
+        run: |
+          python -m pip install pytest pytest-cov
+          pytest -q --maxfail=1 --junitxml=reports/junit-${{ matrix.python-version }}.xml --cov=./ --cov-report=xml:reports/coverage-${{ matrix.python-version }}.xml
+      - name: upload-test-reports
+        # テスト結果（JUnit / coverage）をアーティファクトとして保存します。デバッグや CI 可視化に利用可能
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ matrix.python-version }}
+          path: reports/
+
+# 補足（コメント）:
+# - 他のイベント (push, pull_request) を追加する場合は on: に push: や pull_request: を追加してください。
+# - actions のバージョンは固定しています。さらに安全にするにはコミット SHA を使うことを検討してください。
+# - secrets を使って PyPI へ公開する場合は、publish ジョブを main またはタグ push の条件付きで追加し、secrets を参照してください。
+# - キャッシュキーは poetry.lock のハッシュを含めています。requirements.txt ベースであれば hashFiles('**/requirements.txt') を使ってください。
