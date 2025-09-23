@@ -1,61 +1,182 @@
-```yaml
 name: Python CI
 
+# ワークフローのトリガー設定
+# 現在は手動実行（workflow_dispatch）のみ有効です。
+# mainブランチへのpushやpull_requestで実行したい場合は、以下のコメントを解除してください。
+# on:
+#   push:
+#     branches: [ "main" ]
+#   pull_request:
+#     branches: [ "main" ]
 on:
   workflow_dispatch:
-    # 手動実行
-  # push:
-    # branches: [main] # masterブランチにpushされたときに実行
-  # pull_request:
-    # branches: [main] # masterブランチへのpull requestが作成されたときに実行
 
+# ジョブのパーミッション設定
+# セキュリティのベストプラクティスとして、必要最小限の権限をデフォルトとします。
 permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build and Test
+  # 静的解析とフォーマットをチェックするジョブ
+  lint:
+    name: 静的解析とフォーマットチェック
     runs-on: ubuntu-latest
-    timeout-minutes: 10 # タイムアウトを設定
+    # タイムアウトを10分に設定
+    timeout-minutes: 10
     steps:
-      - name: Checkout code
+      # ステップ1: リポジトリのソースコードをチェックアウト
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          # CIでGitの認証情報が不要なためfalseに設定
+          persist-credentials: false
+
+      # ステップ2: Python環境のセットアップ
+      - name: Python 3.11 のセットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ステップ3: Poetryのインストール
+      # Poetryを使いやすくするために、pipx経由でインストールします
+      - name: Poetryのインストール
+        run: |
+          pipx install poetry
+
+      # ステップ4: Poetryのキャッシュ設定
+      # poetry.lockファイルのハッシュをキーにして、依存関係のキャッシュを復元・保存します
+      - name: Poetryキャッシュの設定
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      # ステップ5: 依存関係のインストール
+      # Poetryを使って、pyproject.tomlとpoetry.lockから依存関係をインストールします
+      - name: 依存関係のインストール
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction --no-ansi
+
+      # ステップ6: ruffによる静的解析
+      # 高速なリンターであるruffを実行します
+      - name: ruffによる静的解析
+        run: |
+          poetry run ruff check .
+
+      # ステップ7: blackによるフォーマットチェック
+      # コードフォーマッターblackを実行し、スタイルが統一されているか確認します
+      - name: blackによるフォーマットチェック
+        run: |
+          poetry run black --check .
+
+  # テストを実行するジョブ
+  test:
+    name: テストの実行
+    # lintジョブが成功した後に実行
+    needs: lint
+    runs-on: ubuntu-latest
+    # タイムアウトを15分に設定
+    timeout-minutes: 15
+    # マトリクス戦略を使い、複数のPythonバージョンでテストを実行
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+
+    steps:
+      # ステップ1: リポジトリのソースコードをチェックアウト
+      - name: リポジトリのチェックアウト
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      # ステップ2: Python環境のセットアップ
+      # マトリクスで指定されたバージョンのPythonをセットアップします
+      - name: Python ${{ matrix.python-version }} のセットアップ
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'poetry' # poetryのキャッシュを有効化
 
-      - name: Install dependencies
-        run: poetry install --no-interaction --no-ansi
+      # ステップ3: Poetryのインストール
+      - name: Poetryのインストール
+        run: |
+          pipx install poetry
 
-      - name: Run tests
-        run: pytest -v tests/
+      # ステップ4: Poetryのキャッシュ設定
+      # Pythonバージョンとpoetry.lockのハッシュをキーにします
+      - name: Poetryキャッシュの設定
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-${{ matrix.python-version }}-
 
-  lint:
-    name: Lint
+      # ステップ5: 依存関係のインストール
+      - name: 依存関係のインストール
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction --no-ansi
+
+      # ステップ6: pytestによるテスト実行
+      # poetry経由でpytestを実行します
+      - name: pytestによるテスト実行
+        run: |
+          poetry run pytest
+
+  # パッケージをビルドするジョブ
+  build:
+    name: パッケージのビルド
+    # testジョブが全てのPythonバージョンで成功した後に実行
+    needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 5 # タイムアウトを設定
+    # タイムアウトを10分に設定
+    timeout-minutes: 10
     steps:
-      - name: Checkout code
+      # ステップ1: リポジトリのソースコードをチェックアウト
+      - name: リポジトリのチェックアウト
         uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      # ステップ2: Python環境のセットアップ
+      - name: Python 3.11 のセットアップ
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
-      - name: Install dependencies
-        run: poetry install --no-interaction --no-ansi
-      - name: Run flake8
-        run: flake8
-      - name: Run mypy
-        run: mypy
-      - name: Run black
-        run: black --check .
-```
+      # ステップ3: Poetryのインストール
+      - name: Poetryのインストール
+        run: |
+          pipx install poetry
+
+      # ステップ4: Poetryのキャッシュ設定
+      - name: Poetryキャッシュの設定
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      # ステップ5: 依存関係のインストール
+      - name: 依存関係のインストール
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction --no-ansi
+
+      # ステップ6: Poetryによるビルド
+      # wheelとsdist形式でパッケージをビルドします
+      - name: Poetryによるビルド
+        run: |
+          poetry build
+
+      # ステップ7: ビルドアーティファクトのアップロード
+      # ビルド成果物（distディレクトリ）をアーティファクトとして保存します
+      - name: ビルドアーティファクトのアップロード
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: dist/
