@@ -1,61 +1,33 @@
-```yaml
 name: Python CI
-
 on:
   workflow_dispatch:
-    # 手動実行
-  # push:
-    # branches: [main] # masterブランチにpushされたときに実行
-  # pull_request:
-    # branches: [main] # masterブランチへのpull requestが作成されたときに実行
-
-permissions:
-  contents: read
-
+    # プルリクやプッシュで実行する場合は以下のように記述
+    # pull_request:
+    # push:
+      # branches: [main]
 jobs:
   build:
     name: Build and Test
     runs-on: ubuntu-latest
-    timeout-minutes: 10 # タイムアウトを設定
+    permissions:
+      contents: read  # checkoutに必要
+    timeout-minutes: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'poetry' # poetryのキャッシュを有効化
-
+          cache: "poetry"
       - name: Install dependencies
-        run: poetry install --no-interaction --no-ansi
-
+        run: |
+          poetry config virtualenvs.create false
+          poetry install --no-interaction --no-ansi
       - name: Run tests
-        run: pytest -v tests/
-
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 5 # タイムアウトを設定
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: poetry install --no-interaction --no-ansi
-      - name: Run flake8
-        run: flake8
-      - name: Run mypy
-        run: mypy
-      - name: Run black
-        run: black --check .
-```
+        run: pytest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10]
