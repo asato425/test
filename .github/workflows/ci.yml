@@ -1,61 +1,112 @@
-```yaml
-name: Python CI
-
+name: Python CI/CD Workflow # ワークフローの名前
 on:
-  workflow_dispatch:
-    # 手動実行
+  workflow_dispatch: # 手動でワークフローを実行するためのトリガー
+  # その他のイベントを追加する場合は、以下のコメントアウトを解除して設定してください。
   # push:
-    # branches: [main] # masterブランチにpushされたときに実行
+  #   branches:
+  #     - main # mainブランチへのプッシュ時に実行
   # pull_request:
-    # branches: [main] # masterブランチへのpull requestが作成されたときに実行
-
-permissions:
-  contents: read
+  #   branches:
+  #     - main # mainブランチへのプルリクエスト時に実行
 
 jobs:
   build:
-    name: Build and Test
-    runs-on: ubuntu-latest
-    timeout-minutes: 10 # タイムアウトを設定
+    name: Build and Lint # ビルドとリンティングジョブの名前
+    runs-on: ubuntu-latest # ジョブを実行するOS
+    permissions:
+      contents: read # リポジトリのコンテンツを読み取る権限
+      checks: write # チェック結果を書き込む権限 (リンターや型チェックの結果をGitHubに表示するため)
+    timeout-minutes: 10 # ジョブの最大実行時間
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository # リポジリをチェックアウト
+        uses: actions/checkout@v4 # actions/checkoutアクションを使用
         with:
-          persist-credentials: false
+          persist-credentials: false # 認証情報を永続化しない
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+      - name: Set up Python # Python環境をセットアップ
+        id: setup-python-build # ステップにIDを付与
+        uses: actions/setup-python@v5 # actions/setup-pythonアクションを使用
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'poetry' # poetryのキャッシュを有効化
+          python-version: "3.10" # 使用するPythonのバージョンを指定
 
-      - name: Install dependencies
-        run: poetry install --no-interaction --no-ansi
+      - name: Install Poetry # Poetryをインストール
+        run: |
+          pip install poetry
 
-      - name: Run tests
-        run: pytest -v tests/
+      - name: Cache Poetry dependencies # Poetryの依存関係をキャッシュ
+        uses: actions/cache@v4 # actions/cacheアクションを使用
+        with:
+          path: ~/.cache/pypoetry/virtualenvs # Poetryが作成する仮想環境のパス
+          key: ${{ runner.os }}-python-${{ steps.setup-python-build.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # キャッシュキー (OS, Pythonバージョン, poetry.lockのハッシュを含む)
+          restore-keys: |
+            ${{ runner.os }}-python-${{ steps.setup-python-build.outputs.python-version }}-poetry- # キャッシュが見つからなかった場合の復元キー
 
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 5 # タイムアウトを設定
+      - name: Install project dependencies # プロジェクトの依存関係をインストール
+        run: |
+          poetry install --no-interaction --no-ansi # Poetryを使って依存関係をインストール (--no-interaction: 対話モード無効, --no-ansi: ANSIエスケープコード無効)
+
+      - name: Lint with Ruff # Ruffでコードをリンティング
+        run: |
+          poetry run ruff check . # Ruffを実行してコードスタイルをチェック
+
+      - name: Check formatting with Ruff # Ruffでコードのフォーマットをチェック
+        run: |
+          poetry run ruff format . --check # Ruffを実行してフォーマットが正しいかチェック
+
+      - name: Type check with MyPy # MyPyで型チェック
+        run: |
+          poetry run mypy . # MyPyを実行して型アノテーションをチェック
+
+  test:
+    name: Run Tests and Coverage # テストとカバレッジ実行ジョブの名前
+    runs-on: ubuntu-latest # ジョブを実行するOS
+    needs: build # buildジョブが成功した後に実行
+    permissions:
+      contents: read # リポジトリのコンテンツを読み取る権限
+      checks: write # チェック結果を書き込む権限 (テスト結果をGitHubに表示するため)
+    timeout-minutes: 10 # ジョブの最大実行時間
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout repository # リポジリをチェックアウト
+        uses: actions/checkout@v4 # actions/checkoutアクションを使用
         with:
-          persist-credentials: false
+          persist-credentials: false # 認証情報を永続化しない
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Python # Python環境をセットアップ
+        id: setup-python-test # ステップにIDを付与
+        uses: actions/setup-python@v5 # actions/setup-pythonアクションを使用
         with:
-          python-version: '3.11'
+          python-version: "3.10" # 使用するPythonのバージョンを指定
 
-      - name: Install dependencies
-        run: poetry install --no-interaction --no-ansi
-      - name: Run flake8
-        run: flake8
-      - name: Run mypy
-        run: mypy
-      - name: Run black
-        run: black --check .
-```
+      - name: Install Poetry # Poetryをインストール
+        run: |
+          pip install poetry
+
+      - name: Restore Poetry dependencies cache # Poetryの依存関係キャッシュを復元
+        uses: actions/cache@v4 # actions/cacheアクションを使用
+        with:
+          path: ~/.cache/pypoetry/virtualenvs # Poetryが作成する仮想環境のパス
+          key: ${{ runner.os }}-python-${{ steps.setup-python-test.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # キャッシュキー (buildジョブと同じキーを使用)
+          restore-keys: |
+            ${{ runner.os }}-python-${{ steps.setup-python-test.outputs.python-version }}-poetry- # キャッシュが見つからなかった場合の復元キー
+
+      - name: Install project dependencies # プロジェクトの依存関係をインストール
+        run: |
+          poetry install --no-interaction --no-ansi # Poetryを使って依存関係をインストール
+
+      - name: Run Pytest and generate reports # Pytestを実行し、テストレポートとカバレッジレポートを生成
+        run: |
+          poetry run pytest --cov=test --cov-report=xml --junitxml=pytest-report.xml # Pytestを実行し、カバレッジとJUnit XMLレポートを生成
+
+      - name: Upload Pytest report # Pytestレポートをアーティファクトとしてアップロード
+        uses: actions/upload-artifact@v4 # actions/upload-artifactアクションを使用
+        with:
+          name: pytest-report # アーティファクトの名前
+          path: pytest-report.xml # アップロードするファイルのパス
+
+      - name: Upload Coverage report # カバレッジレポートをアーティファクトとしてアップロード
+        uses: actions/upload-artifact@v4 # actions/upload-artifactアクションを使用
+        with:
+          name: coverage-report # アーティファクトの名前
+          path: coverage.xml # アップロードするファイルのパス
