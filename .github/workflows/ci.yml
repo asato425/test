@@ -1,14 +1,13 @@
 name: CI
 on:
   workflow_dispatch:
-    # その他のイベントを追加するには、ここに記述を追加します。例: push, pull_request
-    # on:
-    #   push:
-    #     branches:
-    #       - main
-    #   pull_request:
-    #     branches:
-    #       - main
+    # その他のイベントを追加するには、以下のように記述します。
+    # push:
+    #   branches:
+    #     - main
+    # pull_request:
+    #   branches:
+    #     - main
 jobs:
   build:
     name: Build
