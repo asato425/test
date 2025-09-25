@@ -11,7 +11,6 @@ on:
           - integration
 jobs:
   build:
-    name: Build
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -33,7 +32,6 @@ jobs:
       - name: Build
         run: poetry build
   test:
-    name: Test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -50,28 +48,11 @@ jobs:
         with:
           python-version: "3.13"
       - name: Install dependencies
-        run: | 
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: poetry install --no-interaction --no-ansi
       - name: Test ${{ github.event.inputs.test_type }}
         run: | 
           if [[ "${{ github.event.inputs.test_type }}" == "unit" ]]; then
-            pytest -q --maxfail=1
+            pytest -v --cov=./
           elif [[ "${{ github.event.inputs.test_type }}" == "integration" ]]; then
-            pytest -q --maxfail=1 --integration
+            pytest -v --cov=./ --integration
           fi
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - name: Deploy to PyPI
-        run: poetry publish --build
