@@ -1,13 +1,14 @@
 name: CI
 on:
   workflow_dispatch:
-    # その他のイベントを追加するには、以下のように記述します。
-    # push:
-    #   branches:
-    #     - main
-    # pull_request:
-    #   branches:
-    #     - main
+    inputs:
+      test_type:
+        description: 'テストの種類を選択してください。'
+        required: true
+        default: 'unit'
+        options:
+          - unit
+          - integration
 jobs:
   build:
     name: Build
@@ -25,19 +26,12 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: "3.13"
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: | 
-            ${{ runner.os }}-pip-
       - name: Install dependencies
-        run: poetry install --no-interaction --no-ansi
-      - name: Lint with flake8
-        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-      - name: Test with pytest
-        run: pytest
+        run: | 
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Build
+        run: poetry build
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -55,14 +49,29 @@ jobs:
         uses: actions/setup-python@v3
         with:
           python-version: "3.13"
-      - name: Cache dependencies
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: | 
-            ${{ runner.os }}-pip-
       - name: Install dependencies
-        run: poetry install --no-interaction --no-ansi
-      - name: Run tests
-        run: pytest
+        run: | 
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Test ${{ github.event.inputs.test_type }}
+        run: | 
+          if [[ "${{ github.event.inputs.test_type }}" == "unit" ]]; then
+            pytest -q --maxfail=1
+          elif [[ "${{ github.event.inputs.test_type }}" == "integration" ]]; then
+            pytest -q --maxfail=1 --integration
+          fi
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Deploy to PyPI
+        run: poetry publish --build
