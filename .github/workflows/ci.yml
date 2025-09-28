@@ -1,159 +1,114 @@
-name: Python CI
+name: CI
 
-# このワークフローは、コードがプッシュされたとき、プルリクエストが作成されたとき、
-# または手動でトリガーされたときに実行されます。
-# 他のイベントを追加する場合は、以下のコメントアウトされた例を参考にしてください。
+# ワークフローのトリガーイベントを設定します。
+# workflow_dispatchは手動実行を可能にします。
+# 他のイベントを追加する場合は、以下のように記述します。
 # on:
 #   push:
-#     branches: [ main, develop ] # mainまたはdevelopブランチへのプッシュ時
+#     branches:
+#       - main
 #   pull_request:
-#     branches: [ main, develop ] # mainまたはdevelopブランチへのプルリクエスト時
+#     branches:
+#       - main
 on:
-  workflow_dispatch: # 手動トリガーのみ
-
-# ワークフロー全体のデフォルトの権限を設定します。
-# 最小限の権限を付与することがセキュリティ上のベストプラクティスです。
-permissions:
-  contents: read # リポジトリのコンテンツを読み取る権限
-  actions: read # アクションの情報を読み取る権限
-  checks: write # チェック（テスト結果など）を書き込む権限
-  pull-requests: write # プルリクエストのステータスを更新する権限
-  statuses: write # コミットステータスを更新する権限
-  # artifacts: write # アーティファクトをアップロードする権限 (必要に応じて追加)
-
-# 同時実行設定：同じブランチでの重複実行を防ぎ、最新のコミットのみを処理します。
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_dispatch:
 
 jobs:
-  # ビルドとリンティングを行うジョブ
-  build_and_lint:
-    name: Build and Lint (Python ${{ matrix.python-version }} on ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 10 # ジョブの最大実行時間を10分に設定
-
-    # 複数のPythonバージョンとOSでテストするためのマトリクス戦略
-    strategy:
-      fail-fast: false # いずれかのマトリクスが失敗しても他のマトリクスは続行
-      matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
-        os: [ubuntu-latest]
+  # ビルドと静的解析を行うジョブ
+  build:
+    name: Build and Lint
+    # ジョブを実行するランナーのOSを指定します。
+    runs-on: ubuntu-latest
+    # ジョブに必要な権限を最小限に設定します。
+    permissions:
+      contents: read
+    # ジョブのタイムアウト時間を設定します。
+    timeout-minutes: 10
 
     steps:
-      # 1. リポジトリのコードをチェックアウト
-      # persist-credentials: false はセキュリティ上の理由から推奨されます。
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      # リポジトリのコードをチェックアウトします。
+      # persist-credentialsはセキュリティのためfalseに設定します。
+      - name: Checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           persist-credentials: false
 
-      # 2. 指定されたPythonバージョンをセットアップ
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      # Python環境をセットアップし、Poetryをインストールします。
+      # cache: 'poetry' を指定することで、poetry.lockに基づいて依存関係のキャッシュが自動的に管理されます。
+      # 複数バージョンのPythonでテストする場合は、strategy.matrixを使用します。
+      # 例:
+      # strategy:
+      #   matrix:
+      #     python-version: ["3.9", "3.10", "3.11"]
+      # steps:
+      #   - name: Set up Python ${{ matrix.python-version }}
+      #     uses: actions/setup-python@v5
+      #     with:
+      #       python-version: ${{ matrix.python-version }}
+      #       cache: 'poetry'
+      - name: Set up Python 3.11 and Poetry
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.11'
+          cache: 'poetry'
 
-      # 3. Poetryをインストール
-      - name: Install Poetry
-        run: |
-          pip install poetry
-          poetry --version
-
-      # 4. Poetryの依存関係をキャッシュ
-      # poetry.lockファイルのハッシュをキーに含めることで、依存関係が変更された場合にのみ再インストールされます。
-      - name: Cache Poetry dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pypoetry/virtualenvs
-          key: ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
-
-      # 5. プロジェクトの依存関係をインストール
-      # --no-interaction と --no-ansi はCI環境での非対話的な実行に役立ちます。
-      - name: Install project dependencies
+      # Poetryを使ってプロジェクトの依存関係をインストールします。
+      # --no-interaction と --no-ansi はCI環境での非対話的な実行を保証します。
+      - name: Install dependencies with Poetry
         run: poetry install --no-interaction --no-ansi
 
-      # 6. Ruffを使ってコードをリンティング（チェック）
-      # 高速なリンターとして推奨されます。
-      - name: Lint code with Ruff
+      # Pythonコードのリンティング（静的解析）を実行します。
+      # Ruffは非常に高速なリンターです。
+      - name: Run Ruff linter
         run: poetry run ruff check .
 
-      # 7. Ruffを使ってコードのフォーマットをチェック
-      # フォーマット違反があれば失敗させます。
-      - name: Check code format with Ruff
-        run: poetry run ruff format . --check
-
-      # 8. プロジェクトをビルド（wheelとsdistを生成）
-      - name: Build package
-        run: poetry build
-
-      # 9. ビルドされたアーティファクトをアップロード
-      # デバッグやリリースプロセスで利用できるようにします。
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-python-${{ matrix.python-version }}-${{ matrix.os }}
-          path: dist/
+      # Pythonコードのフォーマットチェックを実行します。
+      # Blackはコードフォーマッターで、--checkオプションでフォーマット違反がないか確認します。
+      - name: Run Black formatter check
+        run: poetry run black --check .
 
   # テストを実行するジョブ
-  run_tests:
-    name: Run Tests (Python ${{ matrix.python-version }} on ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    needs: build_and_lint # ビルドとリンティングが成功した後にのみ実行
-    timeout-minutes: 10 # ジョブの最大実行時間を10分に設定
-
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
-        os: [ubuntu-latest]
+  tests:
+    name: Run Tests
+    # このジョブはbuildジョブが成功した後にのみ実行されます。
+    needs: build
+    # ジョブを実行するランナーのOSを指定します。
+    runs-on: ubuntu-latest
+    # ジョブに必要な権限を最小限に設定します。
+    permissions:
+      contents: read
+    # ジョブのタイムアウト時間を設定します。
+    timeout-minutes: 10
 
     steps:
-      # 1. リポジトリのコードをチェックアウト
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      # リポジトリのコードをチェックアウトします。
+      - name: Checkout code
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           persist-credentials: false
 
-      # 2. 指定されたPythonバージョンをセットアップ
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      # Python環境をセットアップし、Poetryをインストールします。
+      # buildジョブと同様にキャッシュを活用します。
+      - name: Set up Python 3.11 and Poetry
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.11'
+          cache: 'poetry'
 
-      # 3. Poetryをインストール
-      - name: Install Poetry
-        run: |
-          pip install poetry
-          poetry --version
-
-      # 4. Poetryの依存関係をキャッシュ
-      # ビルドジョブと同じキャッシュキーを使用します。
-      - name: Cache Poetry dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pypoetry/virtualenvs
-          key: ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
-
-      # 5. プロジェクトの依存関係をインストール
-      - name: Install project dependencies
+      # Poetryを使ってプロジェクトの依存関係をインストールします。
+      - name: Install dependencies with Poetry
         run: poetry install --no-interaction --no-ansi
 
-      # 6. Pytestとpytest-covを使ってユニットテストとカバレッジを実行
-      # --cov=test は 'test' ディレクトリのコードのカバレッジを測定します。
-      # --cov-report=xml はJUnit形式のXMLレポートを生成し、GitHubのUIで表示できます。
-      # --cov-report=term-missing はターミナルにカバレッジの不足箇所を表示します。
-      - name: Run unit tests with Pytest and Coverage
-        run: poetry run pytest --cov=test --cov-report=xml --cov-report=term-missing
+      # Pytestを使ってユニットテストを実行し、カバレッジレポートを生成します。
+      # --cov=./test は 'test' ディレクトリのコードカバレッジを計測します。
+      # --cov-report=xml はXML形式でカバレッジレポートを出力します。
+      - name: Run unit tests with coverage
+        run: poetry run pytest --cov=./test --cov-report=xml
 
-      # 7. カバレッジレポートをアップロード
-      # Codecovなどの外部サービスと連携したり、後でダウンロードして確認したりできます。
+      # 生成されたカバレッジレポートをアーティファクトとしてアップロードします。
+      # これにより、GitHub Actionsの実行結果からレポートをダウンロードして確認できます。
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: coverage-report-python-${{ matrix.python-version }}-${{ matrix.os }}
+          name: coverage-report
           path: coverage.xml
