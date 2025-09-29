@@ -1,124 +1,126 @@
 name: Python CI
 
-# ワークフローのトリガーイベントを定義します。
-# workflow_dispatchは手動実行を可能にします。
-# 他のイベント（例: push, pull_request）を追加する場合は、以下のように記述します。
-# on:
-#   push:
-#     branches: [ main ]
-#   pull_request:
-#     branches: [ main ]
-#   workflow_dispatch:
 on:
+  # 手動でワークフローを実行するためのイベント
   workflow_dispatch:
+  # 他のイベントを追加する場合は、以下のコメントアウトを解除してください
+  # push:
+  #   branches: [ main ]
+  # pull_request:
+  #   branches: [ main ]
 
-# ジョブの並行実行を制御します。
-# 同じブランチでの重複実行を防ぎ、最新のコミットのみを処理します。
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-# ワークフロー内のジョブを定義します。
 jobs:
-  # ビルドジョブ
   build:
-    # ジョブの表示名
+    # ビルドジョブの名前
     name: Build and Lint
-    # ジョブが実行されるランナー環境
+    # ジョブが実行されるランナーのOS
     runs-on: ubuntu-latest
-    # ジョブのタイムアウト設定 (分)
+    # ジョブのタイムアウト設定
     timeout-minutes: 10
-    # ジョブの権限設定 (最小権限の原則に従う)
+    # ジョブの権限設定 (成果物のアップロードのため write 権限が必要)
     permissions:
-      contents: read # リポジトリのコードを読み取るために必要
+      contents: write
 
-    # ジョブのステップを定義します。
     steps:
-      # リポジリのコードをチェックアウトします。
-      # persist-credentials: false はセキュリティのベストプラクティスです。
+      # コードをチェックアウト
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
-          persist-credentials: false
+          persist-credentials: false # 認証情報を永続化しない
 
-      # Python環境をセットアップします。
-      # プロジェクトのpyproject.tomlからPythonバージョンを自動検出するか、明示的に指定します。
-      # ここではPython 3.13を指定し、poetryの依存関係をキャッシュします。
-      - name: Set up Python 3.13
+      # Python環境をセットアップ
+      - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: "3.13"
-          cache: "poetry" # poetryの依存関係をキャッシュします
+          python-version: '3.12' # Python 3.12を使用。プロジェクトがPython 3.13をターゲットとしている場合は、GitHub Actionsで利用可能になり次第 '3.13' に変更を検討してください。
 
-      # Poetryをインストールします。
-      # snok/install-poetry@v1 アクションを使用して、Poetryを確実にインストールし、PATHに追加します。
+      # Poetryをインストール
       - name: Install Poetry
-        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
-        with:
-          version: '1.x.x' # 使用したいPoetryのバージョンを指定 (例: '1.8.2' や 'latest')
+        run: |
+          pip install poetry
 
-      # poetryの依存関係をインストールします。
-      # --no-interaction --no-ansi はCI環境での非対話的なインストールに適しています。
-      - name: Install dependencies with Poetry
+      # Poetryの依存関係キャッシュを復元/保存
+      - name: Cache Poetry dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry/virtualenvs # Poetryの仮想環境キャッシュパス
+          key: ${{ runner.os }}-python-3.12-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-python-3.12-poetry-
+
+      # プロジェクトの依存関係をインストール
+      - name: Install project dependencies
         run: |
           poetry install --no-interaction --no-ansi
 
-      # コードの静的解析 (Lint) を実行します。
-      # flake8を使用してコードスタイルと品質をチェックします。
-      - name: Run Flake8 Lint
+      # コードのリンティングとフォーマットチェック (Ruffを使用)
+      - name: Run linters and format check
         run: |
-          poetry run flake8 .
+          poetry run ruff check .
+          poetry run ruff format . --check
 
-      # コードのフォーマットチェック (Black) を実行します。
-      # フォーマット違反がないか確認し、違反があれば失敗させます。
-      - name: Check code format with Black
+      # パッケージをビルド
+      - name: Build package
         run: |
-          poetry run black --check .
+          poetry build
 
-  # テストジョブ
+      # ビルドされたパッケージをアーティファクトとしてアップロード
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dist
+          path: dist/
+
   tests:
-    # ジョブの表示名
-    name: Run Tests
-    # ジョブが実行されるランナー環境
+    # テストジョブの名前
+    name: Run Unit Tests
+    # ジョブが実行されるランナーのOS
     runs-on: ubuntu-latest
-    # ジョブのタイムアウト設定 (分)
+    # ジョブのタイムアウト設定
     timeout-minutes: 10
-    # ジョブの権限設定 (最小権限の原則に従う)
+    # ジョブの権限設定 (コードの読み取りのみのため read 権限)
     permissions:
-      contents: read # リポジトリのコードを読み取るために必要
+      contents: read
 
-    # buildジョブが成功した場合にのみ実行します。
-    needs: build
-
-    # ジョブのステップを定義します。
     steps:
-      # リポジトリのコードをチェックアウトします。
+      # コードをチェックアウト
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
-          persist-credentials: false
+          persist-credentials: false # 認証情報を永続化しない
 
-      # Python環境をセットアップします。
-      - name: Set up Python 3.13
+      # Python環境をセットアップ
+      - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: "3.13"
-          cache: "poetry"
+          python-version: '3.12' # Python 3.12を使用。プロジェクトがPython 3.13をターゲットとしている場合は、GitHub Actionsで利用可能になり次第 '3.13' に変更を検討してください。
 
-      # Poetryをインストールします。
-      # snok/install-poetry@v1 アクションを使用して、Poetryを確実にインストールし、PATHに追加します。
+      # Poetryをインストール
       - name: Install Poetry
-        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
-        with:
-          version: '1.x.x' # 使用したいPoetryのバージョンを指定 (例: '1.8.2' や 'latest')
+        run: |
+          pip install poetry
 
-      # poetryの依存関係をインストールします。
-      - name: Install dependencies with Poetry
+      # Poetryの依存関係キャッシュを復元/保存
+      - name: Cache Poetry dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry/virtualenvs # Poetryの仮想環境キャッシュパス
+          key: ${{ runner.os }}-python-3.12-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-python-3.12-poetry-
+
+      # プロジェクトの依存関係をインストール
+      - name: Install project dependencies
         run: |
           poetry install --no-interaction --no-ansi
 
-      # pytestを使用してユニットテストを実行します。
-      # pytest-covプラグインを使用してカバレッジレポートを生成します。
-      - name: Run unit tests with Pytest
+      # Pytestでユニットテストを実行し、カバレッジを生成
+      - name: Run unit tests with coverage
         run: |
-          poetry run pytest --cov=./ --cov-report=xml
+          poetry run pytest --cov=test --cov-report=xml --cov-report=term-missing
+        # カバレッジレポートをアーティファクトとしてアップロードする場合は、permissions: contents: write が必要です
+        # - name: Upload coverage report
+        #   uses: actions/upload-artifact@v4
+        #   with:
+        #     name: coverage-report
+        #     path: coverage.xml
