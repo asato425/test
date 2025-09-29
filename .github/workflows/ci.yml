@@ -25,14 +25,14 @@ jobs:
     steps:
       # リポジトリのチェックアウト
       - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@v4
         with:
           # 認証情報を永続化しない (セキュリティのため)
           persist-credentials: false
 
       # Python環境のセットアップ
       - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        uses: actions/setup-python@v5
         with:
           # プロジェクトで指定されているPythonバージョン
           python-version: "3.13"
@@ -41,7 +41,9 @@ jobs:
 
       # Poetryのインストール
       - name: Install Poetry
-        run: pip install poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python -
+          echo "$HOME/.poetry/bin" >> $GITHUB_PATH
 
       # Poetryの依存関係をインストール
       - name: Install Poetry dependencies
@@ -66,14 +68,14 @@ jobs:
     steps:
       # リポジトリのチェックアウト
       - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        uses: actions/checkout@v4
         with:
           # 認証情報を永続化しない (セキュリティのため)
           persist-credentials: false
 
       # Python環境のセットアップ
       - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        uses: actions/setup-python@v5
         with:
           # プロジェクトで指定されているPythonバージョン
           python-version: "3.13"
@@ -82,7 +84,9 @@ jobs:
 
       # Poetryのインストール
       - name: Install Poetry
-        run: pip install poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python -
+          echo "$HOME/.poetry/bin" >> $GITHUB_PATH
 
       # Poetryの依存関係をインストール
       - name: Install Poetry dependencies
