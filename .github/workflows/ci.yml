@@ -46,12 +46,12 @@ jobs:
           path: ~/.cache/pypoetry/virtualenvs # Poetryの仮想環境キャッシュパス
           key: ${{ runner.os }}-python-3.13-poetry-${{ hashFiles('**/poetry.lock') }} # Pythonバージョンを3.13に更新
           restore-keys: |
-            ${{ runner.os }}-python-3.13-poetry- # Pythonバージョンを3.13に更新
+            ${{ runner.os }}-python-3.13-poetry-
 
-      # プロジェクトの依存関係をインストール
+      # プロジェクトの依存関係をインストール (開発用依存関係もインストールするように修正)
       - name: Install project dependencies
         run: |
-          poetry install --no-interaction --no-ansi
+          poetry install --no-interaction --no-ansi --with dev
 
       # コードのリンティングとフォーマットチェック (Ruffを使用)
       - name: Run linters and format check
@@ -107,12 +107,12 @@ jobs:
           path: ~/.cache/pypoetry/virtualenvs # Poetryの仮想環境キャッシュパス
           key: ${{ runner.os }}-python-3.13-poetry-${{ hashFiles('**/poetry.lock') }} # Pythonバージョンを3.13に更新
           restore-keys: |
-            ${{ runner.os }}-python-3.13-poetry- # Pythonバージョンを3.13に更新
+            ${{ runner.os }}-python-3.13-poetry-
 
-      # プロジェクトの依存関係をインストール
+      # プロジェクトの依存関係をインストール (開発用依存関係もインストールするように修正)
       - name: Install project dependencies
         run: |
-          poetry install --no-interaction --no-ansi
+          poetry install --no-interaction --no-ansi --with dev
 
       # Pytestでユニットテストを実行し、カバレッジを生成
       - name: Run unit tests with coverage
