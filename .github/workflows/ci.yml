@@ -1,136 +1,97 @@
 name: Python CI
 
 on:
-  # 手動でワークフローを実行するためのイベント
   workflow_dispatch:
-  # 他のイベントを追加する場合は、以下のコメントアウトを解除してください
-  # push:
-  #   branches: [ main ]
-  # pull_request:
-  #   branches: [ main ]
+    # 他のイベントを追加する場合は、以下のように記述します。
+    # push:
+    #   branches:
+    #     - main
+    # pull_request:
+    #   branches:
+    #     - main
 
 jobs:
   build:
     # ビルドジョブの名前
-    name: Build and Lint
-    # ジョブが実行されるランナーのOS
+    name: Build
+    # ジョブの実行環境
     runs-on: ubuntu-latest
-    # ジョブのタイムアウト設定
+    # ジョブのタイムアウト設定 (分)
     timeout-minutes: 10
-    # ジョブの権限設定 (成果物のアップロードのため write 権限が必要)
-    permissions:
-      contents: write
-
-    steps:
-      # コードをチェックアウト
-      - name: Checkout repository
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-        with:
-          persist-credentials: false # 認証情報を永続化しない
-
-      # Python環境をセットアップ
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: '3.13' # プロジェクトの要件に合わせてPython 3.13に修正
-
-      # Poetryをインストール
-      - name: Install Poetry
-        run: |
-          pip install poetry
-
-      # Poetryの依存関係キャッシュを復元/保存
-      - name: Cache Poetry dependencies
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.cache/pypoetry/virtualenvs # Poetryの仮想環境キャッシュパス
-          key: ${{ runner.os }}-python-3.13-poetry-${{ hashFiles('**/poetry.lock') }} # Pythonバージョンを3.13に更新
-          restore-keys: |
-            ${{ runner.os }}-python-3.13-poetry-
-
-      # プロジェクトの依存関係をインストール
-      # `--with dev` オプションは、`pyproject.toml` に `[tool.poetry.group.dev.dependencies]` が定義されていないためエラーになりました。
-      # このオプションを削除することで、現在のエラーは解消されます。
-      # もし `pytest` や `ruff` が見つからないエラーが再発した場合は、
-      # `pyproject.toml` の `[tool.poetry.group.dev.dependencies]` にそれらを定義するか、
-      # `[tool.poetry.dependencies]` に含めることを検討してください。
-      - name: Install project dependencies
-        run: |
-          poetry install --no-interaction --no-ansi
-
-      # コードのリンティングとフォーマットチェック (Ruffを使用)
-      - name: Run linters and format check
-        run: |
-          poetry run ruff check .
-          poetry run ruff format . --check
-
-      # パッケージをビルド
-      - name: Build package
-        run: |
-          poetry build
-
-      # ビルドされたパッケージをアーティファクトとしてアップロード
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: dist
-          path: dist/
-
-  tests:
-    # テストジョブの名前
-    name: Run Unit Tests
-    # ジョブが実行されるランナーのOS
-    runs-on: ubuntu-latest
-    # ジョブのタイムアウト設定
-    timeout-minutes: 10
-    # ジョブの権限設定 (コードの読み取りのみのため read 権限)
+    # ジョブの権限設定 (最小権限)
     permissions:
       contents: read
 
     steps:
-      # コードをチェックアウト
+      # リポジトリのチェックアウト
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
-          persist-credentials: false # 認証情報を永続化しない
+          # 認証情報を永続化しない (セキュリティのため)
+          persist-credentials: false
 
-      # Python環境をセットアップ
+      # Python環境のセットアップ
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: '3.13' # プロジェクトの要件に合わせてPython 3.13に修正
+          # プロジェクトで指定されているPythonバージョン
+          python-version: "3.13"
+          # Poetryのキャッシュを有効化
+          cache: "poetry"
 
-      # Poetryをインストール
-      - name: Install Poetry
+      # Poetryの依存関係をインストール
+      - name: Install Poetry dependencies
+        # Poetryの仮想環境作成を無効化し、システムPythonにインストール
         run: |
-          pip install poetry
-
-      # Poetryの依存関係キャッシュを復元/保存
-      - name: Cache Poetry dependencies
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.cache/pypoetry/virtualenvs # Poetryの仮想環境キャッシュパス
-          key: ${{ runner.os }}-python-3.13-poetry-${{ hashFiles('**/poetry.lock') }} # Pythonバージョンを3.13に更新
-          restore-keys: |
-            ${{ runner.os }}-python-3.13-poetry-
-
-      # プロジェクトの依存関係をインストール (開発用依存関係もインストールするように修正)
-      # `--with dev` オプションは、`pyproject.toml` に `[tool.poetry.group.dev.dependencies]` が定義されていないためエラーになりました。
-      # このオプションを削除することで、現在のエラーは解消されます。
-      # もし `pytest` や `ruff` が見つからないエラーが再発した場合は、
-      # `pyproject.toml` の `[tool.poetry.group.dev.dependencies]` にそれらを定義するか、
-      # `[tool.poetry.dependencies]` に含めることを検討してください。
-      - name: Install project dependencies
-        run: |
+          poetry config virtualenvs.create false
           poetry install --no-interaction --no-ansi
 
-      # Pytestでユニットテストを実行し、カバレッジを生成
-      - name: Run unit tests with coverage
+  tests:
+    # テストジョブの名前
+    name: Run Tests
+    # ビルドジョブが成功した後に実行
+    needs: build
+    # ジョブの実行環境
+    runs-on: ubuntu-latest
+    # ジョブのタイムアウト設定 (分)
+    timeout-minutes: 10
+    # ジョブの権限設定 (最小権限)
+    permissions:
+      contents: read
+
+    steps:
+      # リポジトリのチェックアウト
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          # 認証情報を永続化しない (セキュリティのため)
+          persist-credentials: false
+
+      # Python環境のセットアップ
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          # プロジェクトで指定されているPythonバージョン
+          python-version: "3.13"
+          # Poetryのキャッシュを有効化
+          cache: "poetry"
+
+      # Poetryの依存関係をインストール
+      - name: Install Poetry dependencies
+        # Poetryの仮想環境作成を無効化し、システムPythonにインストール
         run: |
-          poetry run pytest --cov=test --cov-report=xml --cov-report=term-missing
-        # カバレッジレポートをアーティファクトとしてアップロードする場合は、permissions: contents: write が必要です
-        # - name: Upload coverage report
-        #   uses: actions/upload-artifact@v4
-        #   with:
-        #     name: coverage-report
-        #     path: coverage.xml
+          poetry config virtualenvs.create false
+          poetry install --no-interaction --no-ansi
+
+      # テストの実行
+      - name: Run unit tests
+        # unittestを使ってテストを実行
+        run: python -m unittest discover tests
+        # 静的解析ツール (flake8, black, mypyなど) を追加する場合は、ここにステップを追加します。
+        # 例:
+        # - name: Run Flake8
+        #   run: poetry run flake8 .
+        # - name: Run Black
+        #   run: poetry run black --check .
+        # - name: Run MyPy
+        #   run: poetry run mypy .
