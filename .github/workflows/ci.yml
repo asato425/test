@@ -48,10 +48,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-python-3.13-poetry-
 
-      # プロジェクトの依存関係をインストール (開発用依存関係もインストールするように修正)
+      # プロジェクトの依存関係をインストール
+      # `--with dev` オプションは、`pyproject.toml` に `[tool.poetry.group.dev.dependencies]` が定義されていないためエラーになりました。
+      # このオプションを削除することで、現在のエラーは解消されます。
+      # もし `pytest` や `ruff` が見つからないエラーが再発した場合は、
+      # `pyproject.toml` の `[tool.poetry.group.dev.dependencies]` にそれらを定義するか、
+      # `[tool.poetry.dependencies]` に含めることを検討してください。
       - name: Install project dependencies
         run: |
-          poetry install --no-interaction --no-ansi --with dev
+          poetry install --no-interaction --no-ansi
 
       # コードのリンティングとフォーマットチェック (Ruffを使用)
       - name: Run linters and format check
@@ -110,9 +115,14 @@ jobs:
             ${{ runner.os }}-python-3.13-poetry-
 
       # プロジェクトの依存関係をインストール (開発用依存関係もインストールするように修正)
+      # `--with dev` オプションは、`pyproject.toml` に `[tool.poetry.group.dev.dependencies]` が定義されていないためエラーになりました。
+      # このオプションを削除することで、現在のエラーは解消されます。
+      # もし `pytest` や `ruff` が見つからないエラーが再発した場合は、
+      # `pyproject.toml` の `[tool.poetry.group.dev.dependencies]` にそれらを定義するか、
+      # `[tool.poetry.dependencies]` に含めることを検討してください。
       - name: Install project dependencies
         run: |
-          poetry install --no-interaction --no-ansi --with dev
+          poetry install --no-interaction --no-ansi
 
       # Pytestでユニットテストを実行し、カバレッジを生成
       - name: Run unit tests with coverage
