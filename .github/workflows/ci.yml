@@ -32,7 +32,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: '3.12' # Python 3.12を使用。プロジェクトがPython 3.13をターゲットとしている場合は、GitHub Actionsで利用可能になり次第 '3.13' に変更を検討してください。
+          python-version: '3.13' # プロジェクトの要件に合わせてPython 3.13に修正
 
       # Poetryをインストール
       - name: Install Poetry
@@ -44,9 +44,9 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/pypoetry/virtualenvs # Poetryの仮想環境キャッシュパス
-          key: ${{ runner.os }}-python-3.12-poetry-${{ hashFiles('**/poetry.lock') }}
+          key: ${{ runner.os }}-python-3.13-poetry-${{ hashFiles('**/poetry.lock') }} # Pythonバージョンを3.13に更新
           restore-keys: |
-            ${{ runner.os }}-python-3.12-poetry-
+            ${{ runner.os }}-python-3.13-poetry- # Pythonバージョンを3.13に更新
 
       # プロジェクトの依存関係をインストール
       - name: Install project dependencies
@@ -93,7 +93,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: '3.12' # Python 3.12を使用。プロジェクトがPython 3.13をターゲットとしている場合は、GitHub Actionsで利用可能になり次第 '3.13' に変更を検討してください。
+          python-version: '3.13' # プロジェクトの要件に合わせてPython 3.13に修正
 
       # Poetryをインストール
       - name: Install Poetry
@@ -105,9 +105,9 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/pypoetry/virtualenvs # Poetryの仮想環境キャッシュパス
-          key: ${{ runner.os }}-python-3.12-poetry-${{ hashFiles('**/poetry.lock') }}
+          key: ${{ runner.os }}-python-3.13-poetry-${{ hashFiles('**/poetry.lock') }} # Pythonバージョンを3.13に更新
           restore-keys: |
-            ${{ runner.os }}-python-3.12-poetry-
+            ${{ runner.os }}-python-3.13-poetry- # Pythonバージョンを3.13に更新
 
       # プロジェクトの依存関係をインストール
       - name: Install project dependencies
