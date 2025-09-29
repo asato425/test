@@ -2,7 +2,8 @@ name: Python CI
 
 on:
   workflow_dispatch:
-    # 他のイベントを追加する場合は、以下のように記述します。
+    # 手動でワークフローを実行するためのイベント。
+    # pushやpull_requestイベントを追加する場合は、以下のように記述します。
     # push:
     #   branches:
     #     - main
@@ -12,118 +13,72 @@ on:
 
 jobs:
   build:
-    # ビルドジョブの名前
-    name: Build
-    # ジョブの実行環境
+    name: Build and Install Dependencies
     runs-on: ubuntu-latest
-    # ジョブのタイムアウト設定 (分)
-    timeout-minutes: 10
-    # ジョブの権限設定 (最小権限)
+    timeout-minutes: 10 # ビルドジョブのタイムアウトを10分に設定
     permissions:
-      contents: read
+      contents: read # リポジトリのコンテンツを読み取る権限のみを付与
 
     steps:
-      # リポジトリのチェックアウト
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
-          # 認証情報を永続化しない (セキュリティのため)
-          persist-credentials: false
+          persist-credentials: false # 認証情報を永続化しない
 
-      # Python環境のセットアップ
       - name: Set up Python
-        uses: actions/setup-python@v5
+        id: setup-python # Pythonバージョンをキャッシュキーで使用するためにIDを設定
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          # プロジェクトで指定されているPythonバージョン
-          python-version: "3.13"
-          # actions/setup-pythonのcacheオプションはpoetry自体をインストールしないため削除
+          python-version: "3.13" # pyproject.tomlのrequires-pythonに合わせて3.13を指定
 
-      # Poetryのインストール
       - name: Install Poetry
-        run: pip install poetry
-
-      # Poetryキャッシュディレクトリの設定
-      - name: Set Poetry cache directory
-        run: echo "POETRY_CACHE_DIR=$(poetry config cache-dir)" >> $GITHUB_ENV
-
-      # Poetry依存関係キャッシュの復元
-      - name: Restore Poetry dependencies cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.POETRY_CACHE_DIR }}
-          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-poetry-
-
-      # Poetryの依存関係をインストール
-      - name: Install Poetry dependencies
-        # Poetryの仮想環境作成を無効化し、システムPythonにインストール
         run: |
-          poetry config virtualenvs.create false
-          poetry install --no-interaction --no-ansi
+          pip install poetry==1.8.2 # Poetryをインストール（バージョン固定）
+          poetry config virtualenvs.in-project true # 仮想環境をプロジェクト内に作成するよう設定
 
-  tests:
-    # テストジョブの名前
+      - name: Cache Poetry dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .venv # プロジェクト内の仮想環境ディレクトリをキャッシュ
+          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # OS, Pythonバージョン, poetry.lockのハッシュをキーに設定
+          restore-keys: |
+            ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-ansi # Poetryを使って依存関係をインストール
+
+  test:
     name: Run Tests
-    # ビルドジョブが成功した後に実行
-    needs: build
-    # ジョブの実行環境
     runs-on: ubuntu-latest
-    # ジョブのタイムアウト設定 (分)
-    timeout-minutes: 10
-    # ジョブの権限設定 (最小権限)
+    timeout-minutes: 10 # テストジョブのタイムアウトを10分に設定
+    needs: build # buildジョブが成功した後に実行
     permissions:
-      contents: read
+      contents: read # リポジトリのコンテンツを読み取る権限のみを付与
 
     steps:
-      # リポジトリのチェックアウト
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
-          # 認証情報を永続化しない (セキュリティのため)
-          persist-credentials: false
+          persist-credentials: false # 認証情報を永続化しない
 
-      # Python環境のセットアップ
       - name: Set up Python
-        uses: actions/setup-python@v5
+        id: setup-python # Pythonバージョンをキャッシュキーで使用するためにIDを設定
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          # プロジェクトで指定されているPythonバージョン
-          python-version: "3.13"
-          # actions/setup-pythonのcacheオプションはpoetry自体をインストールしないため削除
+          python-version: "3.13" # pyproject.tomlのrequires-pythonに合わせて3.13を指定
 
-      # Poetryのインストール
       - name: Install Poetry
-        run: pip install poetry
-
-      # Poetryキャッシュディレクトリの設定
-      - name: Set Poetry cache directory
-        run: echo "POETRY_CACHE_DIR=$(poetry config cache-dir)" >> $GITHUB_ENV
-
-      # Poetry依存関係キャッシュの復元
-      - name: Restore Poetry dependencies cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.POETRY_CACHE_DIR }}
-          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-poetry-
-
-      # Poetryの依存関係をインストール
-      - name: Install Poetry dependencies
-        # Poetryの仮想環境作成を無効化し、システムPythonにインストール
         run: |
-          poetry config virtualenvs.create false
-          poetry install --no-interaction --no-ansi
+          pip install poetry==1.8.2 # Poetryをインストール（バージョン固定）
+          poetry config virtualenvs.in-project true # 仮想環境をプロジェクト内に作成するよう設定
 
-      # テストの実行
-      - name: Run unit tests
-        # poetry run を使って、Poetryが管理する環境でコマンドを実行
-        run: poetry run python -m unittest discover tests
-        # 静的解析ツール (flake8, black, mypyなど) を追加する場合は、ここにステップを追加します。
-        # 例:
-        # - name: Run Flake8
-        #   run: poetry run flake8 .
-        # - name: Run Black
-        #   run: poetry run black --check .
-        # - name: Run MyPy
-        #   run: poetry run mypy .
+      - name: Restore Poetry dependencies cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .venv # プロジェクト内の仮想環境ディレクトリをキャッシュ
+          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # buildジョブと同じキーでキャッシュを復元
+          restore-keys: |
+            ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-
+
+      - name: Run tests
+        run: poetry run python -m unittest discover tests # Poetryの仮想環境内でunittestを実行
