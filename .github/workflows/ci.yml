@@ -36,8 +36,12 @@ jobs:
         with:
           # プロジェクトで指定されているPythonバージョン
           python-version: "3.13"
-          # Poetryのキャッシュを有効化
+          # Poetryの依存関係キャッシュを有効化
           cache: "poetry"
+
+      # Poetryのインストール
+      - name: Install Poetry
+        run: pip install poetry
 
       # Poetryの依存関係をインストール
       - name: Install Poetry dependencies
@@ -73,8 +77,12 @@ jobs:
         with:
           # プロジェクトで指定されているPythonバージョン
           python-version: "3.13"
-          # Poetryのキャッシュを有効化
+          # Poetryの依存関係キャッシュを有効化
           cache: "poetry"
+
+      # Poetryのインストール
+      - name: Install Poetry
+        run: pip install poetry
 
       # Poetryの依存関係をインストール
       - name: Install Poetry dependencies
@@ -85,8 +93,8 @@ jobs:
 
       # テストの実行
       - name: Run unit tests
-        # unittestを使ってテストを実行
-        run: python -m unittest discover tests
+        # poetry run を使って、Poetryが管理する環境でコマンドを実行
+        run: poetry run python -m unittest discover tests
         # 静的解析ツール (flake8, black, mypyなど) を追加する場合は、ここにステップを追加します。
         # 例:
         # - name: Run Flake8
