@@ -36,14 +36,24 @@ jobs:
         with:
           # プロジェクトで指定されているPythonバージョン
           python-version: "3.13"
-          # Poetryの依存関係キャッシュを有効化
-          cache: "poetry"
+          # actions/setup-pythonのcacheオプションはpoetry自体をインストールしないため削除
 
       # Poetryのインストール
       - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python -
-          echo "$HOME/.poetry/bin" >> $GITHUB_PATH
+        run: pip install poetry
+
+      # Poetryキャッシュディレクトリの設定
+      - name: Set Poetry cache directory
+        run: echo "POETRY_CACHE_DIR=$(poetry config cache-dir)" >> $GITHUB_ENV
+
+      # Poetry依存関係キャッシュの復元
+      - name: Restore Poetry dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.POETRY_CACHE_DIR }}
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
 
       # Poetryの依存関係をインストール
       - name: Install Poetry dependencies
@@ -79,14 +89,24 @@ jobs:
         with:
           # プロジェクトで指定されているPythonバージョン
           python-version: "3.13"
-          # Poetryの依存関係キャッシュを有効化
-          cache: "poetry"
+          # actions/setup-pythonのcacheオプションはpoetry自体をインストールしないため削除
 
       # Poetryのインストール
       - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python -
-          echo "$HOME/.poetry/bin" >> $GITHUB_PATH
+        run: pip install poetry
+
+      # Poetryキャッシュディレクトリの設定
+      - name: Set Poetry cache directory
+        run: echo "POETRY_CACHE_DIR=$(poetry config cache-dir)" >> $GITHUB_ENV
+
+      # Poetry依存関係キャッシュの復元
+      - name: Restore Poetry dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.POETRY_CACHE_DIR }}
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
 
       # Poetryの依存関係をインストール
       - name: Install Poetry dependencies
