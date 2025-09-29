@@ -1,28 +1,32 @@
-name: CI
+name: Python CI/CD Workflow # ワークフローの名前
+
 on:
-  workflow_dispatch:
-    # その他のイベント（例: push, pull_request）を追加する場合は、以下のコメントアウトを解除してください。
-    # push:
-    #   branches:
-    #     - main # デフォルトブランチ名に合わせて変更してください
-    # pull_request:
-    #   branches:
-    #     - main # デフォルトブランチ名に合わせて変更してください
+  workflow_dispatch: # 手動でワークフローを実行するためのトリガー
+  # その他のイベント（例: push, pull_request）を追加する場合は、以下のコメントアウトを解除してください。
+  # push:
+  #   branches: [ main, develop ] # mainブランチとdevelopブランチへのpush時に実行
+  # pull_request:
+  #   branches: [ main, develop ] # mainブランチとdevelopブランチへのプルリクエスト時に実行
+
+# 同一ブランチでの重複実行を避けるための設定
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    name: Build and Lint
-    runs-on: ubuntu-latest
-    timeout-minutes: 10 # ジョブのタイムアウトを10分に設定
+    name: Build Python Package # ビルドジョブの名前
+    runs-on: ubuntu-latest # ジョブを実行するOS
+    timeout-minutes: 10 # ジョブの最大実行時間
     permissions:
       contents: read # リポジトリのコンテンツを読み取る権限のみを付与
 
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"] # 複数のPythonバージョンでテスト
+        python-version: ["3.10", "3.11", "3.12"] # テストするPythonのバージョン
 
     steps:
-      - name: Checkout repository # リポジトリをチェックアウト
+      - name: Checkout Repository # リポジトリをチェックアウト
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           persist-credentials: false # 認証情報を永続化しない（セキュリティのため）
@@ -31,58 +35,43 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
+          cache: "poetry" # Poetryの依存関係をキャッシュする設定（actions/setup-pythonが内部で処理）
 
       - name: Install Poetry # Poetryをインストール
         run: |
           pip install poetry
-          poetry config virtualenvs.create false # CI環境では仮想環境を作成しない設定
 
-      - name: Cache Poetry dependencies # Poetryの依存関係をキャッシュ
-        id: cache-poetry
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.cache/pypoetry/virtualenvs # Poetryのキャッシュパス
-          key: ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # OS, Pythonバージョン, poetry.lockのハッシュをキーに含める
-          restore-keys: |
-            ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
-
-      - name: Install dependencies # 依存関係をインストール
-        run: poetry install --no-interaction --no-ansi # poetry.lockに基づいて依存関係をインストール
-
-      - name: Lint with Flake8 # Flake8でコードのスタイルをチェック
+      - name: Configure Poetry Virtualenvs # Poetryが仮想環境を作成しないように設定（CI環境向け）
         run: |
-          pip install flake8 # flake8をインストール
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics # エラーのみ表示
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics # 警告も表示するが、CIを失敗させない
+          poetry config virtualenvs.create false
 
-      - name: Check code formatting with Black # Blackでコードのフォーマットをチェック
+      - name: Install dependencies with Poetry # poetry.lockに基づいて依存関係をインストール
         run: |
-          pip install black # blackをインストール
-          black --check . # フォーマット違反がないかチェック（修正はしない）
+          poetry install --no-interaction --no-ansi # ユーザーインタラクションなし、ANSIエスケープコードなしでインストール
 
-      - name: Build package # パッケージをビルド
-        run: poetry build # wheelとsdistを生成
+      - name: Build Python package # Pythonパッケージをビルド
+        run: |
+          poetry build # sdistとwheelを生成
 
-      - name: Upload build artifacts # ビルドされたパッケージをアーティファクトとしてアップロード
+      - name: Upload built artifacts # ビルドされたパッケージをアーティファクトとしてアップロード
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: dist-${{ matrix.python-version }} # アーティファクト名
+          name: dist-${{ matrix.python-version }} # アーティファクトの名前
           path: dist/ # ビルド成果物のパス
 
   tests:
-    name: Run Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10 # ジョブのタイムアウトを10分に設定
+    name: Run Tests and Lint # テストとリンティングジョブの名前
+    runs-on: ubuntu-latest # ジョブを実行するOS
+    timeout-minutes: 15 # ジョブの最大実行時間
     permissions:
       contents: read # リポジトリのコンテンツを読み取る権限のみを付与
 
-    needs: build # buildジョブが成功した後に実行
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"] # 複数のPythonバージョンでテスト
+        python-version: ["3.10", "3.11", "3.12"] # テストするPythonのバージョン
 
     steps:
-      - name: Checkout repository # リポジトリをチェックアウト
+      - name: Checkout Repository # リポジトリをチェックアウト
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           persist-credentials: false # 認証情報を永続化しない（セキュリティのため）
@@ -91,31 +80,37 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
+          cache: "poetry" # Poetryの依存関係をキャッシュする設定（actions/setup-pythonが内部で処理）
 
       - name: Install Poetry # Poetryをインストール
         run: |
           pip install poetry
-          poetry config virtualenvs.create false # CI環境では仮想環境を作成しない設定
 
-      - name: Cache Poetry dependencies # Poetryの依存関係をキャッシュ
-        id: cache-poetry
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.cache/pypoetry/virtualenvs # Poetryのキャッシュパス
-          key: ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # OS, Pythonバージョン, poetry.lockのハッシュをキーに含める
-          restore-keys: |
-            ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
-
-      - name: Install dependencies # 依存関係をインストール
-        run: poetry install --no-interaction --no-ansi # poetry.lockに基づいて依存関係をインストール
-
-      - name: Run tests with Pytest # Pytestでテストを実行
+      - name: Configure Poetry Virtualenvs # Poetryが仮想環境を作成しないように設定（CI環境向け）
         run: |
-          pip install pytest pytest-cov # pytestとカバレッジツールをインストール
-          poetry run pytest --cov=test --cov-report=xml --cov-report=term-missing # テストを実行し、カバレッジレポートを生成
+          poetry config virtualenvs.create false
+
+      - name: Install dependencies with Poetry # poetry.lockに基づいて依存関係をインストール
+        run: |
+          poetry install --no-interaction --no-ansi # ユーザーインタラクションなし、ANSIエスケープコードなしでインストール
+          # ruff, pytest, pytest-covなどの開発依存もpyproject.tomlに定義されていればここでインストールされる
+
+      - name: Run Ruff Linter # Ruffを使ってコードの静的解析を実行
+        run: |
+          poetry run ruff check . # プロジェクト全体をチェック
+
+      - name: Run Ruff Formatter Check # Ruffを使ってコードのフォーマットチェックを実行
+        run: |
+          poetry run ruff format --check . # フォーマット違反がないかチェック
+
+      - name: Run Pytest # Pytestを使ってユニットテストを実行
+        run: |
+          poetry run pytest -q --cov=test --cov-report=xml # テストを実行し、カバレッジレポートをXML形式で生成
+        env:
+          PYTHONPATH: . # プロジェクトルートをPYTHONPATHに追加してモジュールをインポート可能にする
 
       - name: Upload coverage report # カバレッジレポートをアーティファクトとしてアップロード
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: coverage-report-${{ matrix.python-version }} # アーティファクト名
+          name: coverage-report-${{ matrix.python-version }} # アーティファクトの名前
           path: coverage.xml # カバレッジレポートのパス
