@@ -1,92 +1,93 @@
 name: CI
+
 on:
   workflow_dispatch:
+    # 手動でワークフローを実行するためのイベント。
+    #
+    # 他のイベントを追加する場合は、以下のように記述します。
     # push:
-    #   branches: [ main ]
+    #   branches:
+    #     - main
     # pull_request:
-    #   branches: [ main ]
+    #   branches:
+    #     - main
 
 jobs:
   build:
-    name: ビルド
+    # Pythonパッケージをビルドするジョブ
+    name: Build Python Package
     runs-on: ubuntu-latest
     permissions:
-      contents: read # リポジトリのコンテンツを読み取るための最小権限
-      actions: write # アーティファクトをアップロードするための権限
-    timeout-minutes: 10 # ジョブのタイムアウトを10分に設定
+      contents: write # リポジトリのチェックアウトとアーティファクトのアップロードに必要
+    timeout-minutes: 10 # ジョブの最大実行時間を10分に設定
+
     steps:
-      - name: リポジトリをチェックアウト
+      - name: Checkout repository # リポジトリをチェックアウト
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           persist-credentials: false # 認証情報を永続化しない
 
-      - name: Python 3.13 をセットアップ
-        id: setup-python # 後続のステップでPythonバージョンを参照するためにIDを設定
+      - name: Set up Python 3.13 # Python 3.13をセットアップ
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: "3.13" # pyproject.toml に基づくPythonバージョン
+          python-version: "3.13" # pyproject.tomlのrequires-pythonに合わせて3.13を指定
 
-      - name: Poetry キャッシュを復元
+      - name: Install Poetry # Poetryをインストール
+        run: pip install poetry
+
+      - name: Cache Poetry dependencies # Poetryの依存関係をキャッシュ
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: ~/.cache/pypoetry/virtualenvs # Poetryの仮想環境キャッシュパス
-          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # OS, Pythonバージョン, poetry.lockのハッシュに基づくキャッシュキー
+          path: ~/.cache/pypoetry # Poetryのキャッシュパス
+          key: python-3.13-poetry-${{ hashFiles('**/poetry.lock') }} # Pythonバージョンとpoetry.lockのハッシュをキーに設定
           restore-keys: |
-            ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry- # 復元キー
+            python-3.13-poetry- # キャッシュが見つからない場合に復元を試みるキー
 
-      - name: Poetry をインストール
-        run: |
-          pip install poetry==1.8.2 # Poetryのバージョンを固定してインストール
+      - name: Install dependencies # プロジェクトの依存関係をインストール
+        run: poetry install --no-interaction --no-ansi # Poetryを使って依存関係をインストール
 
-      - name: 依存関係をインストール
-        run: |
-          poetry install --no-interaction --no-ansi # poetry.lockに基づいて依存関係をインストール
+      - name: Build package # Pythonパッケージをビルド
+        run: poetry build # Poetryを使ってパッケージをビルド
 
-      - name: パッケージをビルド
-        run: |
-          poetry build # プロジェクトのパッケージをビルド
-
-      - name: ビルド成果物をアップロード
+      - name: Upload artifacts # ビルドされたパッケージをアーティファクトとしてアップロード
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: dist # アーティファクト名
-          path: dist/ # ビルド成果物のパス
+          name: python-package # アーティファクトの名前
+          path: dist/ # アップロードするパス
 
   tests:
-    name: テスト
+    # プロジェクトのテストを実行するジョブ
+    name: Run Tests
     runs-on: ubuntu-latest
     permissions:
-      contents: read # リポジトリのコンテンツを読み取るための最小権限
-    timeout-minutes: 10 # ジョブのタイムアウトを10分に設定
+      contents: read # リポジトリのチェックアウトに必要
+    timeout-minutes: 10 # ジョブの最大実行時間を10分に設定
     needs: build # ビルドジョブが成功した後に実行
+
     steps:
-      - name: リポジトリをチェックアウト
+      - name: Checkout repository # リポジリをチェックアウト
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           persist-credentials: false # 認証情報を永続化しない
 
-      - name: Python 3.13 をセットアップ
-        id: setup-python # 後続のステップでPythonバージョンを参照するためにIDを設定
+      - name: Set up Python 3.13 # Python 3.13をセットアップ
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: "3.13" # pyproject.toml に基づくPythonバージョン
+          python-version: "3.13" # pyproject.tomlのrequires-pythonに合わせて3.13を指定
 
-      - name: Poetry キャッシュを復元
+      - name: Install Poetry # Poetryをインストール
+        run: pip install poetry
+
+      - name: Cache Poetry dependencies # Poetryの依存関係をキャッシュ
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: ~/.cache/pypoetry/virtualenvs # Poetryの仮想環境キャッシュパス
-          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # OS, Pythonバージョン, poetry.lockのハッシュに基づくキャッシュキー
+          path: ~/.cache/pypoetry # Poetryのキャッシュパス
+          key: python-3.13-poetry-${{ hashFiles('**/poetry.lock') }} # Pythonバージョンとpoetry.lockのハッシュをキーに設定
           restore-keys: |
-            ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry- # 復元キー
+            python-3.13-poetry- # キャッシュが見つからない場合に復元を試みるキー
 
-      - name: Poetry をインストール
-        run: |
-          pip install poetry==1.8.2 # Poetryのバージョンを固定してインストール
+      - name: Install dependencies # プロジェクトの依存関係をインストール
+        run: poetry install --no-interaction --no-ansi # Poetryを使って依存関係をインストール
 
-      - name: 依存関係をインストール
-        run: |
-          poetry install --no-interaction --no-ansi # poetry.lockに基づいて依存関係をインストール
-
-      - name: ユニットテストを実行
-        run: |
-          python -m unittest discover tests # unittestモジュールを使用してテストを実行
+      - name: Run unit tests # ユニットテストを実行
+        run: python -m unittest discover tests # unittestモジュールを使ってtestsディレクトリ内のテストを発見し実行
