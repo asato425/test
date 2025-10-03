@@ -30,22 +30,24 @@ jobs:
         with:
           persist-credentials: false
 
+      # Poetryをインストールします。
+      # snok/install-poetry@v1アクションを使用することで、PoetryのインストールとPATHへの追加を確実に実行します。
+      # actions/setup-pythonのcache: poetryオプションがPoetryを見つけられるように、このステップをsetup-pythonの前に移動します。
+      - name: Install Poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: latest # プロジェクトのpoetry.lockがPoetry 2.1.4で生成されているため、最新版を使用します。
+
       # Python環境をセットアップします。
       # python-versionはpyproject.tomlの要件に合わせて3.13を指定します。
       # cache: poetry を指定することで、Poetryの依存関係キャッシュが有効になります。
+      # cache-dependency-pathでpoetry.lockを指定し、キャッシュキーに含めます。
       - name: Set up Python 3.13
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.13"
           cache: "poetry"
-
-      # Poetryをインストールします。
-      # snok/install-poetry@v1アクションを使用することで、PoetryのインストールとPATHへの追加を確実に実行します。
-      # プロジェクトのpoetry.lockがPoetry 2.1.4で生成されているため、最新版を使用します。
-      - name: Install Poetry
-        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
-        with:
-          version: latest
+          cache-dependency-path: poetry.lock
 
       # Poetryが仮想環境を作成しないように設定します。
       # CI環境では通常、システムPython環境またはactions/setup-pythonが提供する環境を使用するため、
@@ -98,20 +100,24 @@ jobs:
         with:
           persist-credentials: false
 
+      # Poetryをインストールします。
+      # snok/install-poetry@v1アクションを使用することで、PoetryのインストールとPATHへの追加を確実に実行します。
+      # actions/setup-pythonのcache: poetryオプションがPoetryを見つけられるように、このステップをsetup-pythonの前に移動します。
+      - name: Install Poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: latest # プロジェクトのpoetry.lockがPoetry 2.1.4で生成されているため、最新版を使用します。
+
       # Python環境をセットアップします。
+      # python-versionはpyproject.tomlの要件に合わせて3.13を指定します。
+      # cache: poetry を指定することで、Poetryの依存関係キャッシュが有効になります。
+      # cache-dependency-pathでpoetry.lockを指定し、キャッシュキーに含めます。
       - name: Set up Python 3.13
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.13"
           cache: "poetry"
-
-      # Poetryをインストールします。
-      # snok/install-poetry@v1アクションを使用することで、PoetryのインストールとPATHへの追加を確実に実行します。
-      # プロジェクトのpoetry.lockがPoetry 2.1.4で生成されているため、最新版を使用します。
-      - name: Install Poetry
-        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
-        with:
-          version: latest
+          cache-dependency-path: poetry.lock
 
       # Poetryが仮想環境を作成しないように設定します。
       - name: Configure Poetry virtualenvs
