@@ -40,8 +40,12 @@ jobs:
           cache: "poetry"
 
       # Poetryをインストールします。
+      # snok/install-poetry@v1アクションを使用することで、PoetryのインストールとPATHへの追加を確実に実行します。
+      # プロジェクトのpoetry.lockがPoetry 2.1.4で生成されているため、最新版を使用します。
       - name: Install Poetry
-        run: pip install poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: latest
 
       # Poetryが仮想環境を作成しないように設定します。
       # CI環境では通常、システムPython環境またはactions/setup-pythonが提供する環境を使用するため、
@@ -102,8 +106,12 @@ jobs:
           cache: "poetry"
 
       # Poetryをインストールします。
+      # snok/install-poetry@v1アクションを使用することで、PoetryのインストールとPATHへの追加を確実に実行します。
+      # プロジェクトのpoetry.lockがPoetry 2.1.4で生成されているため、最新版を使用します。
       - name: Install Poetry
-        run: pip install poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: latest
 
       # Poetryが仮想環境を作成しないように設定します。
       - name: Configure Poetry virtualenvs
