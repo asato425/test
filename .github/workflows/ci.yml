@@ -1,0 +1,133 @@
+name: Python CI with Poetry
+
+# ワークフローをトリガーするイベントを定義します。
+# workflow_dispatchは手動実行を可能にします。
+# pushやpull_requestイベントを追加することで、コードの変更時に自動実行できます。
+on:
+  workflow_dispatch:
+    # push:
+    #   branches: [ main ] # mainブランチへのpush時に実行
+    # pull_request:
+    #   branches: [ main ] # mainブランチへのプルリクエスト時に実行
+
+jobs:
+  # ビルドとリンティングを行うジョブ
+  build:
+    name: Build and Lint
+    # ジョブを実行するランナーのOSを指定します。
+    runs-on: ubuntu-latest
+    # ジョブのタイムアウトを設定します。
+    timeout-minutes: 10
+    # ジョブに必要な権限を最小限に設定します。
+    permissions:
+      contents: read # リポジトリのコンテンツを読み取る権限
+
+    steps:
+      # リポジトリをチェックアウトします。
+      # persist-credentials: false は、認証情報を保持しないことを意味し、セキュリティを向上させます。
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      # Poetryをインストールします。
+      # snok/install-poetry@v1アクションを使用することで、PoetryのインストールとPATHへの追加を確実に実行します。
+      # actions/setup-pythonのcache: poetryオプションがPoetryを見つけられるように、このステップをsetup-pythonの前に移動します。
+      - name: Install Poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: latest # プロジェクトのpoetry.lockがPoetry 2.1.4で生成されているため、最新版を使用します。
+
+      # Python環境をセットアップします。
+      # python-versionはpyproject.tomlの要件に合わせて3.13を指定します。
+      # cache: poetry を指定することで、Poetryの依存関係キャッシュが有効になります。
+      # cache-dependency-pathでpoetry.lockを指定し、キャッシュキーに含めます。
+      - name: Set up Python 3.13
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+          cache: "poetry"
+          cache-dependency-path: poetry.lock
+
+      # Poetryが仮想環境を作成しないように設定します。
+      # CI環境では通常、システムPython環境またはactions/setup-pythonが提供する環境を使用するため、
+      # Poetryによる追加の仮想環境作成は不要です。
+      - name: Configure Poetry virtualenvs
+        run: poetry config virtualenvs.create false
+
+      # プロジェクトの依存関係をインストールします。
+      # --no-interaction と --no-ansi はCI環境での出力を簡潔にします。
+      # poetry.lockファイルに基づいて依存関係がインストールされます。
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-ansi
+
+      # Ruffを使ってコードのリンティングを実行します。
+      # Ruffは高速なPythonリンターです。
+      # このステップが成功するには、ruffがプロジェクトのdev-dependenciesに含まれている必要があります。
+      - name: Run Linter (Ruff)
+        run: poetry run ruff check .
+
+      # Poetryを使ってパッケージをビルドします。
+      # これにより、dist/ディレクトリにwheelやsdistが生成されます。
+      - name: Build package
+        run: poetry build
+
+      # ビルドされたパッケージをアーティファクトとしてアップロードします。
+      # これにより、ワークフローの実行後にビルド成果物をダウンロードして確認できます。
+      - name: Upload artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: python-package
+          path: dist/
+
+  # テストを実行するジョブ
+  tests:
+    name: Run Tests
+    # ジョブを実行するランナーのOSを指定します。
+    runs-on: ubuntu-latest
+    # ジョブのタイムアウトを設定します。
+    timeout-minutes: 10
+    # このジョブはbuildジョブが成功した後にのみ実行されます。
+    needs: build
+    # ジョブに必要な権限を最小限に設定します。
+    permissions:
+      contents: read # リポジトリのコンテンツを読み取る権限
+
+    steps:
+      # リポジトリをチェックアウトします。
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      # Poetryをインストールします。
+      # snok/install-poetry@v1アクションを使用することで、PoetryのインストールとPATHへの追加を確実に実行します。
+      # actions/setup-pythonのcache: poetryオプションがPoetryを見つけられるように、このステップをsetup-pythonの前に移動します。
+      - name: Install Poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: latest # プロジェクトのpoetry.lockがPoetry 2.1.4で生成されているため、最新版を使用します。
+
+      # Python環境をセットアップします。
+      # python-versionはpyproject.tomlの要件に合わせて3.13を指定します。
+      # cache: poetry を指定することで、Poetryの依存関係キャッシュが有効になります。
+      # cache-dependency-pathでpoetry.lockを指定し、キャッシュキーに含めます。
+      - name: Set up Python 3.13
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+          cache: "poetry"
+          cache-dependency-path: poetry.lock
+
+      # Poetryが仮想環境を作成しないように設定します。
+      - name: Configure Poetry virtualenvs
+        run: poetry config virtualenvs.create false
+
+      # プロジェクトの依存関係をインストールします。
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-ansi
+
+      # unittestを使ってテストを実行します。
+      # testsディレクトリ内のテストファイルを自動的に発見して実行します。
+      - name: Run tests
+        run: poetry run python -m unittest discover tests
