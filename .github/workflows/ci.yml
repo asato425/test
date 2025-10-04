@@ -1,0 +1,177 @@
+name: Python CI/CD
+
+# ワークフローが実行されるトリガーを定義します。
+# pushイベントで、どのブランチでも実行されます。
+# 他のイベント（例: pull_request, workflow_dispatch）を追加する場合は、以下のコメントアウトを参考にしてください。
+on:
+  push:
+    # branches: [ main, develop ] # 特定のブランチのみで実行する場合
+  # pull_request:
+  #   branches: [ main ]
+  # workflow_dispatch: # 手動でワークフローを実行する場合
+
+# ワークフローの実行に必要な権限を最小限に設定します。
+# ジョブレベルでより詳細なパーミッションを設定するため、ここではデフォルトの読み取り権限のみとします。
+permissions:
+  contents: read # リポジトリのコンテンツの読み取りに必要
+  # pull-requests: write # プルリクエストにコメントを投稿する場合などに必要
+
+# 同時実行設定。同じブランチで複数のワークフローが同時に実行されるのを防ぎます。
+# cancel-in-progress: true を設定すると、新しい実行が開始されたときに進行中の実行をキャンセルします。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ジョブを定義します。
+jobs:
+  # ビルドジョブ
+  build:
+    name: Build and Lint
+    # ジョブが実行されるランナーのOSを指定します。
+    runs-on: ubuntu-latest
+    # ジョブのタイムアウトを設定します。
+    timeout-minutes: 10
+    # ジョブレベルのパーミッションを明示的に設定します。
+    # コードの読み取りとビルド成果物のアップロードに必要です。
+    permissions:
+      contents: write # コードの読み取りとアーティファクトのアップロードに必要
+
+    # Pythonのバージョンをマトリクス戦略で定義します。
+    # 複数のPythonバージョンでテストを実行できます。
+    strategy:
+      matrix:
+        python-version: ["3.13"] # プロジェクトのサポートするPythonバージョンに合わせて調整
+
+    steps:
+      # リポジトリのコードをチェックアウトします。
+      # persist-credentials: false はセキュリティのベストプラクティスです。
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      # Poetryをインストールします。
+      # actions/setup-pythonの前にPoetryをインストールすることで、cache: "poetry"オプションが正しく機能します。
+      - name: Install Poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: latest # 使用したいPoetryのバージョンを指定
+
+      # 指定されたPythonバージョンをセットアップします。
+      # Poetryのキャッシュはsnok/install-poetry@v1が処理するため、cacheオプションは不要です。
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Poetryの依存関係をキャッシュします。
+      # キャッシュキーにはPythonバージョンとpoetry.lockファイルのハッシュを含めることで、
+      # 依存関係が変更された場合にのみ再インストールが行われます。
+      - name: Cache Poetry dependencies
+        id: cache-poetry
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry
+          key: python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            python-${{ matrix.python-version }}-poetry-
+
+      # Poetryの依存関係をインストールします。
+      # --no-interaction --no-ansi はCI環境での非対話的なインストールに適しています。
+      # デフォルトで開発依存もインストールされます。
+      - name: Install project dependencies
+        run: |
+          poetry install --no-interaction --no-ansi
+
+      # コードのフォーマットチェックとリンティングを実行します。
+      # ruffは高速なリンター/フォーマッターです。
+      - name: Run Ruff linting and formatting check
+        run: |
+          poetry run ruff check .
+          poetry run ruff format . --check
+
+      # Blackによるコードフォーマットチェックを実行します。
+      - name: Run Black formatting check
+        run: |
+          poetry run black . --check
+
+      # MyPyによる型チェックを実行します。
+      - name: Run MyPy type checking
+        run: |
+          poetry run mypy .
+
+      # プロジェクトをビルドします。
+      # wheelとsdist形式のパッケージを生成します。
+      - name: Build project
+        run: |
+          poetry build
+
+      # ビルドされたアーティファクトをアップロードします。
+      # 後続のデプロイジョブや手動での確認に利用できます。
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dist-${{ matrix.python-version }}
+          path: dist/
+
+  # テストジョブ
+  test:
+    name: Run Tests
+    # ビルドジョブが成功した場合にのみ実行されます。
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # ジョブレベルのパーミッションを明示的に設定します。
+    # コードの読み取りとカバレッジレポートのアップロードに必要です。
+    permissions:
+      contents: write # コードの読み取りとカバレッジレポートのアップロードに必要
+
+    strategy:
+      matrix:
+        python-version: ["3.13"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      # Poetryをインストールします。
+      # actions/setup-pythonの前にPoetryをインストールすることで、cache: "poetry"オプションが正しく機能します。
+      - name: Install Poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: latest # 使用したいPoetryのバージョンを指定
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache Poetry dependencies
+        id: cache-poetry
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry
+          key: python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            python-${{ matrix.python-version }}-poetry-
+
+      - name: Install project dependencies
+        run: |
+          poetry install --no-interaction --no-ansi
+
+      # Pytestを使って単体テストを実行し、カバレッジを生成します。
+      # --cov=. はプロジェクト全体のカバレッジを測定します。
+      # --cov-report=xml はXML形式でカバレッジレポートを出力します。
+      - name: Run unit tests with coverage
+        run: |
+          poetry run pytest --cov=. --cov-report=xml
+
+      # カバレッジレポートをアップロードします。
+      # Codecovなどのサービスと連携してカバレッジの変化を追跡できます。
+      - name: Upload coverage report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-report-${{ matrix.python-version }}
+          path: coverage.xml
