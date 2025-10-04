@@ -1,0 +1,127 @@
+name: Python CI
+
+# ワークフローがトリガーされるイベントを定義します。
+# pushイベントで、すべてのブランチに対して実行されます。
+# 他のイベント（例: pull_request, workflow_dispatch）を追加する場合は、以下のように記述します。
+# on:
+#   push:
+#   pull_request:
+#     branches: [ main ]
+#   workflow_dispatch:
+on:
+  push:
+
+# 同時実行設定。同じブランチでの重複実行を防ぎます。
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ビルドジョブ
+  build:
+    name: Build and Lint
+    runs-on: ubuntu-latest
+    # ジョブのタイムアウト設定
+    timeout-minutes: 10
+    # 最小限の権限を設定
+    permissions:
+      contents: read # リポジトリのコードを読み取るため
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"] # 複数のPythonバージョンでテスト
+    steps:
+      # リポジトリをチェックアウトします
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false # 認証情報を永続化しない（セキュリティのため）
+
+      # 指定されたPythonバージョンをセットアップします
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Poetryをインストールします
+      - name: Install Poetry
+        run: |
+          pip install poetry
+
+      # Poetryのキャッシュを復元または保存します
+      - name: Restore Poetry cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
+
+      # 依存関係をインストールします
+      - name: Install dependencies
+        run: |
+          # CI環境で仮想環境を作成しないように設定
+          poetry config virtualenvs.create false
+          poetry install --no-interaction --no-ansi
+
+      # コードのフォーマットチェック (Black)
+      - name: Check code format with Black
+        run: |
+          poetry run black --check .
+
+      # コードのリンティング (Ruff)
+      - name: Lint code with Ruff
+        run: |
+          poetry run ruff check .
+
+  # テストジョブ
+  tests:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    # ビルドジョブが成功した場合にのみ実行
+    needs: build
+    # ジョブのタイムアウト設定
+    timeout-minutes: 15
+    # 最小限の権限を設定
+    permissions:
+      contents: read # リポジトリのコードを読み取るため
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"] # 複数のPythonバージョンでテスト
+    steps:
+      # リポジトリをチェックアウトします
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false # 認証情報を永続化しない（セキュリティのため）
+
+      # 指定されたPythonバージョンをセットアップします
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Poetryをインストールします
+      - name: Install Poetry
+        run: |
+          pip install poetry
+
+      # Poetryのキャッシュを復元または保存します
+      - name: Restore Poetry cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
+
+      # 依存関係をインストールします
+      - name: Install dependencies
+        run: |
+          # CI環境で仮想環境を作成しないように設定
+          poetry config virtualenvs.create false
+          poetry install --no-interaction --no-ansi
+
+      # Pytestを使用してテストを実行します
+      - name: Run tests with Pytest
+        run: |
+          poetry run pytest
