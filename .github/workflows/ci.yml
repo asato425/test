@@ -40,7 +40,7 @@ jobs:
     # 複数のPythonバージョンでテストを実行できます。
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"] # プロジェクトのサポートするPythonバージョンに合わせて調整
+        python-version: ["3.13"] # プロジェクトのサポートするPythonバージョンに合わせて調整
 
     steps:
       # リポジトリのコードをチェックアウトします。
@@ -128,7 +128,7 @@ jobs:
 
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.13"]
 
     steps:
       - name: Checkout repository
