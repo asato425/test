@@ -38,15 +38,15 @@ jobs:
         with:
           # 使用するPythonのバージョンを指定
           python-version: "3.12"
-          # Poetryの依存関係をキャッシュする設定
-          cache: "poetry"
+          # Poetryのキャッシュは手動で管理するため、cache: poetryは削除
 
-      # Poetryツールをインストールし、PATHに追加するステップ
-      - name: Install Poetry Tool and Add to PATH
-        run: |
-          python -m pip install poetry
-          # poetryコマンドがPATHに含まれるように ~/.local/bin を追加
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      # Poetryツールをインストールするステップ
+      - name: Install Poetry Tool
+        run: python -m pip install poetry
+
+      # PoetryコマンドがPATHに含まれるように ~/.local/bin を追加するステップ
+      - name: Add Poetry to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       # Poetryの設定を行うステップ（仮想環境を作成しないように設定）
       - name: Configure Poetry
@@ -91,15 +91,15 @@ jobs:
         with:
           # 使用するPythonのバージョンを指定
           python-version: "3.12"
-          # Poetryの依存関係をキャッシュする設定
-          cache: "poetry"
+          # Poetryのキャッシュは手動で管理するため、cache: poetryは削除
 
-      # Poetryツールをインストールし、PATHに追加するステップ
-      - name: Install Poetry Tool and Add to PATH
-        run: |
-          python -m pip install poetry
-          # poetryコマンドがPATHに含まれるように ~/.local/bin を追加
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      # Poetryツールをインストールするステップ
+      - name: Install Poetry Tool
+        run: python -m pip install poetry
+
+      # PoetryコマンドがPATHに含まれるように ~/.local/bin を追加するステップ
+      - name: Add Poetry to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       # Poetryの設定を行うステップ（仮想環境を作成しないように設定）
       - name: Configure Poetry
