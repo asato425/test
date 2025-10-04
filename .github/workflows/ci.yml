@@ -41,12 +41,13 @@ jobs:
           # Poetryの依存関係をキャッシュする設定
           cache: "poetry"
 
-      # Poetryをインストールし、仮想環境を作成しないように設定するステップ
-      - name: Install Poetry
-        run: |
-          python -m pip install poetry
-          # CI環境では仮想環境を作成せず、システムPython環境に直接依存関係をインストール
-          poetry config virtualenvs.create false --local
+      # Poetryツールをインストールするステップ
+      - name: Install Poetry Tool
+        run: python -m pip install poetry
+
+      # Poetryの設定を行うステップ（仮想環境を作成しないように設定）
+      - name: Configure Poetry
+        run: poetry config virtualenvs.create false --local
 
       # プロジェクトの依存関係をインストールするステップ
       - name: Install dependencies
@@ -90,12 +91,13 @@ jobs:
           # Poetryの依存関係をキャッシュする設定
           cache: "poetry"
 
-      # Poetryをインストールし、仮想環境を作成しないように設定するステップ
-      - name: Install Poetry
-        run: |
-          python -m pip install poetry
-          # CI環境では仮想環境を作成せず、システムPython環境に直接依存関係をインストール
-          poetry config virtualenvs.create false --local
+      # Poetryツールをインストールするステップ
+      - name: Install Poetry Tool
+        run: python -m pip install poetry
+
+      # Poetryの設定を行うステップ（仮想環境を作成しないように設定）
+      - name: Configure Poetry
+        run: poetry config virtualenvs.create false --local
 
       # プロジェクトの依存関係をインストールするステップ
       - name: Install dependencies
