@@ -58,9 +58,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
 
-      # プロジェクトの依存関係をインストールするステップ
+      # プロジェクトの依存関係をインストールするステップ（開発依存関係も含む）
       - name: Install dependencies
-        run: poetry install --no-interaction --no-ansi
+        run: poetry install --with dev --no-interaction --no-ansi
 
       # Flake8を使ってコードのスタイルと品質をチェックするステップ
       - name: Run Flake8
@@ -89,7 +89,7 @@ jobs:
         python-version: ["3.x"]
 
     steps:
-      # リポジトリをチェックアウトするステップ
+      # リポジリをチェックアウトするステップ
       - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         # 認証情報を永続化しない設定（セキュリティベストプラクティス）
@@ -119,9 +119,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
 
-      # プロジェクトの依存関係をインストールするステップ
+      # プロジェクトの依存関係をインストールするステップ（開発依存関係も含む）
       - name: Install dependencies
-        run: poetry install --no-interaction --no-ansi
+        run: poetry install --with dev --no-interaction --no-ansi
 
       # Pytestを使ってテストを実行するステップ
       - name: Run Pytest
