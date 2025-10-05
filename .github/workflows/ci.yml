@@ -58,9 +58,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
 
-      # プロジェクトの依存関係をインストールするステップ（開発依存関係も含む）
+      # プロジェクトの依存関係をインストールするステップ
       - name: Install dependencies
-        run: poetry install --with dev --no-interaction --no-ansi
+        # 以前のエラー「Group(s) not found: dev」を解決するため、--with dev オプションを削除します。
+        # これにより、pyproject.tomlにdevグループが定義されていない場合でもエラーになりません。
+        run: poetry install --no-interaction --no-ansi
 
       # Flake8を使ってコードのスタイルと品質をチェックするステップ
       - name: Run Flake8
@@ -119,9 +121,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-python-${{ matrix.python-version }}-poetry-
 
-      # プロジェクトの依存関係をインストールするステップ（開発依存関係も含む）
+      # プロジェクトの依存関係をインストールするステップ
       - name: Install dependencies
-        run: poetry install --with dev --no-interaction --no-ansi
+        # 以前のエラー「Group(s) not found: dev」を解決するため、--with dev オプションを削除します。
+        # これにより、pyproject.tomlにdevグループが定義されていない場合でもエラーになりません。
+        run: poetry install --no-interaction --no-ansi
 
       # Pytestを使ってテストを実行するステップ
       - name: Run Pytest
