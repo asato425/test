@@ -1,0 +1,129 @@
+name: CI
+on:
+  # このワークフローは 'work_1005_1252' ブランチへのプッシュ時に実行されます。
+  # 他のイベント（例: プルリクエスト、手動トリガー）を追加する場合は、以下のコメントアウトを解除してください。
+  push:
+    branches:
+      - work_1005_1252
+  # pull_request:
+  #   branches:
+  #     - main
+  # workflow_dispatch:
+
+# ワークフロー全体の権限設定。必要最小限の権限を付与します。
+# contents: read はリポジトリのチェックアウトに必要です。
+# checks: write はテスト結果やリンティング結果をGitHub Checksに書き込むために必要です。
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  # ビルドとリンティングを行うジョブ
+  build:
+    name: ビルドとリンティング
+    # ジョブの権限設定。必要最小限の権限を付与します。
+    permissions:
+      contents: write   # リポジトリのチェックアウト、キャッシュの復元/保存に必要
+      checks: write   # リンティング結果をGitHub Checksに書き込むために必要
+    # ジョブが実行されるランナーのOSを指定します。
+    runs-on: ubuntu-latest
+    # ジョブの最大実行時間を設定します。
+    timeout-minutes: 10
+
+    steps:
+      # リポジトリのコードをチェックアウトします。
+      # persist-credentials: false はセキュリティのベストプラクティスです。
+      - name: コードをチェックアウト
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      # Python環境をセットアップします。
+      # pyproject.tomlのrequires-python設定に基づき、Python 3.13を指定します。
+      - name: Pythonをセットアップ
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+
+      # Poetryをインストールします。
+      # バージョンを固定することで、再現性を高めます。
+      - name: Poetryをインストール
+        run: pip install poetry==1.8.2
+
+      # Poetryの依存関係キャッシュを復元または保存します。
+      # poetry.lockファイルのハッシュをキーに含めることで、依存関係が変更された場合にのみ再インストールされます。
+      # matrix.python-version が定義されていないため、直接 '3.13' を指定します。
+      - name: Poetryキャッシュを復元
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry
+          key: python-3.13-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            python-3.13-poetry-
+
+      # プロジェクトの依存関係をインストールします。
+      # --no-interaction --no-ansi はCI環境での実行に適しています。
+      - name: 依存関係をインストール
+        run: poetry install --no-interaction --no-ansi
+
+      # Blackを使用してコードのフォーマットチェックを行います。
+      # continue-on-error: true を指定することで、フォーマット違反があっても後続のステップが実行されます。
+      - name: コードのフォーマットチェック (Black)
+        run: poetry run black --check .
+        continue-on-error: true
+
+      # Flake8を使用してコードの静的解析を行います。
+      # continue-on-error: true を指定することで、リンティングエラーがあっても後続のステップが実行されます。
+      - name: コードの静的解析 (Flake8)
+        run: poetry run flake8 .
+        continue-on-error: true
+
+  # テストを実行するジョブ
+  tests:
+    name: テストの実行
+    # ジョブの権限設定。必要最小限の権限を付与します。
+    permissions:
+      contents: read  # リポジトリのチェックアウトとキャッシュの復元に必要
+      checks: write   # テスト結果をGitHub Checksに書き込むために必要
+    # ジョブが実行されるランナーのOSを指定します。
+    runs-on: ubuntu-latest
+    # ジョブの最大実行時間を設定します。
+    timeout-minutes: 10
+    # 'build' ジョブが成功した場合にのみこのジョブを実行します。
+    needs: build
+
+    steps:
+      # リポジトリのコードをチェックアウトします。
+      - name: コードをチェックアウト
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      # Python環境をセットアップします。
+      - name: Pythonをセットアップ
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+
+      # Poetryをインストールします。
+      - name: Poetryをインストール
+        run: pip install poetry==1.8.2
+
+      # Poetryの依存関係キャッシュを復元します。
+      # matrix.python-version が定義されていないため、直接 '3.13' を指定します。
+      - name: Poetryキャッシュを復元
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry
+          key: python-3.13-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            python-3.13-poetry-
+
+      # プロジェクトの依存関係をインストールします。
+      - name: 依存関係をインストール
+        run: poetry install --no-interaction --no-ansi
+
+      # ユニットテストを実行します。
+      # unittestモジュールを使用して、'tests'ディレクトリ内のテストを検出して実行します。
+      - name: ユニットテストを実行
+        run: poetry run python -m unittest discover tests
