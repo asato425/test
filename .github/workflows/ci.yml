@@ -1,0 +1,135 @@
+name: Python CI
+
+# ワークフローが実行されるトリガーを設定
+on:
+  # main ブランチへのプッシュ時にワークフローを実行
+  push:
+    branches:
+      - main
+  # その他のイベント（例: プルリクエスト時、手動実行時）
+  # pull_request:
+  #   branches:
+  #     - main
+  # workflow_dispatch:
+
+# ワークフローの実行に必要な権限を設定
+permissions:
+  contents: read # リポジリのコンテンツを読み取る権限
+
+# ジョブの定義
+jobs:
+  # ビルドジョブ
+  build:
+    name: Build and Lint
+    # ジョブが実行されるランナーのOS
+    runs-on: ubuntu-latest
+    # ジョブのタイムアウト設定
+    timeout-minutes: 10
+    # ジョブ固有の権限設定
+    permissions:
+      contents: read # リポジトリのコンテンツを読み取る権限
+
+    # ジョブのステップ
+    steps:
+      # リポジトリをチェックアウト
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          # 認証情報を永続化しない
+          persist-credentials: false
+
+      # Python環境をセットアップ
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          # 使用するPythonのバージョン
+          python-version: "3.x" # pyproject.tomlで指定されたバージョンに合わせて変更してください
+
+      # Poetryをインストール
+      - name: Install Poetry
+        run: |
+          pip install poetry
+          # CI環境では仮想環境を作成しない設定
+          poetry config virtualenvs.create false
+
+      # 依存関係のキャッシュを復元または保存
+      - name: Cache Poetry dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          # キャッシュするパス
+          path: ~/.cache/pypoetry/virtualenvs
+          # キャッシュキー
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          # 復元キー
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      # 依存関係をインストール
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-ansi
+
+      # コードのフォーマットチェック (Black)
+      - name: Check code format with Black
+        run: poetry run black --check .
+        continue-on-error: true # フォーマットエラーがあっても続行
+
+      # コードの静的解析 (Flake8)
+      - name: Lint with Flake8
+        run: poetry run flake8 .
+        continue-on-error: true # Lintエラーがあっても続行
+
+  # テストジョブ
+  test:
+    name: Run Tests
+    # ビルドジョブが成功した場合にのみ実行
+    needs: build
+    # ジョブが実行されるランナーのOS
+    runs-on: ubuntu-latest
+    # ジョブのタイムアウト設定
+    timeout-minutes: 10
+    # ジョブ固有の権限設定
+    permissions:
+      contents: read # リポジトリのコンテンツを読み取る権限
+
+    # ジョブのステップ
+    steps:
+      # リポジトリをチェックアウト
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          # 認証情報を永続化しない
+          persist-credentials: false
+
+      # Python環境をセットアップ
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          # 使用するPythonのバージョン
+          python-version: "3.x" # pyproject.tomlで指定されたバージョンに合わせて変更してください
+
+      # Poetryをインストール
+      - name: Install Poetry
+        run: |
+          pip install poetry
+          # CI環境では仮想環境を作成しない設定
+          poetry config virtualenvs.create false
+
+      # 依存関係のキャッシュを復元または保存
+      - name: Cache Poetry dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          # キャッシュするパス
+          path: ~/.cache/pypoetry/virtualenvs
+          # キャッシュキー
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          # 復元キー
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      # 依存関係をインストール
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-ansi
+
+      # テストを実行 (pytest)
+      - name: Run tests with pytest
+        run: poetry run pytest tests/
