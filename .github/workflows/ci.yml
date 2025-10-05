@@ -1,0 +1,127 @@
+name: Python CI
+
+# ワークフローが実行されるトリガーを定義します。
+on:
+  # mainブランチへのpushイベントでワークフローを実行します。
+  # 他のイベント（例: pull_request, workflow_dispatch）を追加する場合は、以下のようにコメントアウトされた行を有効にしてください。
+  # pull_request:
+  #   branches:
+  #     - main
+  # workflow_dispatch: # 手動でワークフローを実行できるようにします
+  push:
+
+# ワークフローに含まれるジョブを定義します。
+jobs:
+  # ビルドと静的解析を行うジョブです。
+  build:
+    name: Build and Lint
+    # ジョブが実行されるランナーのOSを指定します。
+    runs-on: ubuntu-latest
+    # ジョブの最大実行時間を設定します。10分を超えるとジョブはキャンセルされます。
+    timeout-minutes: 10
+    # このジョブが必要とする最小限の権限を設定します。
+    # リポジトリのコンテンツを読み取る権限のみが必要です。
+    permissions:
+      contents: read
+
+    steps:
+      # リポジトリをチェックアウトします。
+      # persist-credentials: false を設定することで、セキュリティを向上させます。
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      # Python環境をセットアップします。
+      # ここでは最新のPython 3バージョンを使用します。
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.x"
+        id: setup-python # キャッシュキーでPythonバージョンを参照するためにIDを設定します
+
+      # Poetryをインストールします。
+      - name: Install Poetry
+        run: pip install poetry
+
+      # Poetryの依存関係をキャッシュします。
+      # Pythonバージョンとpoetry.lockファイルのハッシュをキーに含めることで、依存関係が変更された場合にのみ再インストールが行われます。
+      - name: Cache Poetry dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry
+          key: python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            python-${{ steps.setup-python.outputs.python-version }}-poetry-
+
+      # プロジェクトの依存関係をインストールします。
+      # --no-interaction と --no-ansi はCI環境での非対話的なインストールに適しています。
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-ansi
+
+      # Flake8を使ってコードのスタイルと品質をチェックします。
+      # continue-on-error: true を設定することで、Lintエラーが発生してもワークフローが失敗せず、後続のステップが実行されます。
+      - name: Run Flake8
+        run: poetry run flake8 .
+        continue-on-error: true
+
+      # Blackを使ってコードのフォーマットをチェックします（変更は行いません）。
+      # continue-on-error: true を設定することで、フォーマットエラーが発生してもワークフローが失敗せず、後続のステップが実行されます。
+      - name: Run Black (check only)
+        run: poetry run black --check .
+        continue-on-error: true
+
+      # isortを使ってimportの順序をチェックします（変更は行いません）。
+      # continue-on-error: true を設定することで、import順序エラーが発生してもワークフローが失敗せず、後続のステップが実行されます。
+      - name: Run isort (check only)
+        run: poetry run isort --check-only .
+        continue-on-error: true
+
+  # テストを実行するジョブです。
+  test:
+    name: Run Tests
+    # ジョブが実行されるランナーのOSを指定します。
+    runs-on: ubuntu-latest
+    # ジョブの最大実行時間を設定します。10分を超えるとジョブはキャンセルされます。
+    timeout-minutes: 10
+    # このジョブは 'build' ジョブが成功した後にのみ実行されます。
+    needs: build
+    # このジョブが必要とする最小限の権限を設定します。
+    # リポジトリのコンテンツを読み取る権限のみが必要です。
+    permissions:
+      contents: read
+
+    steps:
+      # リポジトリをチェックアウトします。
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      # Python環境をセットアップします。
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.x"
+        id: setup-python
+
+      # Poetryをインストールします。
+      - name: Install Poetry
+        run: pip install poetry
+
+      # Poetryの依存関係をキャッシュします。
+      - name: Cache Poetry dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry
+          key: python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            python-${{ steps.setup-python.outputs.python-version }}-poetry-
+
+      # プロジェクトの依存関係をインストールします。
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-ansi
+
+      # pytestを使ってユニットテストを実行します。
+      - name: Run Pytest
+        run: poetry run pytest
