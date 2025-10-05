@@ -62,27 +62,23 @@ jobs:
             python-3.13-poetry-
 
       # プロジェクトの依存関係をインストールします。
-      # 実行エラーログのパスから、リポジトリが 'test_python' サブディレクトリにチェックアウトされていると推測されるため、
-      # working-directory を指定して正しいパスでコマンドを実行します。
+      # working-directory の指定を削除し、リポジトリのルートで実行されるようにします。
       # --no-interaction --no-ansi はCI環境での実行に適しています。
       - name: 依存関係をインストール
         run: poetry install --no-interaction --no-ansi
-        working-directory: ./test_python
 
       # Blackを使用してコードのフォーマットチェックを行います。
-      # working-directory を指定して正しいパスでコマンドを実行します。
+      # working-directory の指定を削除し、リポジトリのルートで実行されるようにします。
       # continue-on-error: true を指定することで、フォーマット違反があっても後続のステップが実行されます。
       - name: コードのフォーマットチェック (Black)
         run: poetry run black --check .
-        working-directory: ./test_python
         continue-on-error: true
 
       # Flake8を使用してコードの静的解析を行います。
-      # working-directory を指定して正しいパスでコマンドを実行します。
+      # working-directory の指定を削除し、リポジトリのルートで実行されるようにします。
       # continue-on-error: true を指定することで、リンティングエラーがあっても後続のステップが実行されます。
       - name: コードの静的解析 (Flake8)
         run: poetry run flake8 .
-        working-directory: ./test_python
         continue-on-error: true
 
   # テストを実行するジョブ
@@ -127,15 +123,12 @@ jobs:
             python-3.13-poetry-
 
       # プロジェクトの依存関係をインストールします。
-      # 実行エラーログのパスから、リポジリが 'test_python' サブディレクトリにチェックアウトされていると推測されるため、
-      # working-directory を指定して正しいパスでコマンドを実行します。
+      # working-directory の指定を削除し、リポジトリのルートで実行されるようにします。
       - name: 依存関係をインストール
         run: poetry install --no-interaction --no-ansi
-        working-directory: ./test_python
 
       # ユニットテストを実行します。
-      # working-directory を指定して正しいパスでコマンドを実行します。
+      # working-directory の指定を削除し、リポジトリのルートで実行されるようにします。
       # unittestモジュールを使用して、'tests'ディレクトリ内のテストを検出して実行します。
       - name: ユニットテストを実行
         run: poetry run python -m unittest discover tests
-        working-directory: ./test_python
