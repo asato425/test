@@ -90,6 +90,13 @@ jobs:
         run: |
           poetry install --no-interaction --no-ansi
 
+      # flake8, black, pytestがpyproject.tomlに定義されていないため、一時的にpipでインストールします。
+      # 理想的には、これらのツールはpyproject.tomlの開発依存関係として定義し、
+      # poetry install でインストールされるべきです。
+      - name: Install Lint and Test tools (temporary fix)
+        run: |
+          pip install flake8 black pytest
+
   # テストジョブの定義
   test:
     # ジョブの表示名
@@ -153,17 +160,24 @@ jobs:
         run: |
           poetry install --no-interaction --no-ansi
 
+      # flake8, black, pytestがpyproject.tomlに定義されていないため、一時的にpipでインストールします。
+      # 理想的には、これらのツールはpyproject.tomlの開発依存関係として定義し、
+      # poetry install でインストールされるべきです。
+      - name: Install Lint and Test tools (temporary fix)
+        run: |
+          pip install flake8 black pytest
+
       # Lint（flake8とblack）を実行するステップ
       - name: Run Lint (flake8, black)
         run: |
           # flake8でコードスタイルをチェック
-          poetry run flake8 .
+          flake8 .
           # blackでコードフォーマットをチェック（変更がないか確認）
-          poetry run black --check .
+          black --check .
         # Lintエラーが発生してもワークフローを続行する設定
         continue-on-error: true
 
       # pytestでテストを実行するステップ
       - name: Run tests with pytest
         run: |
-          poetry run pytest
+          pytest
