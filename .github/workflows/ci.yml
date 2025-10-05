@@ -53,7 +53,7 @@ jobs:
         run: poetry install --no-interaction --no-ansi
 
       - name: Install linters # リンターをインストール
-        run: poetry add flake8 --group dev --no-update
+        run: poetry add flake8 --group dev # 実行エラー修正: --no-updateオプションを削除
 
       - name: Run Lint # Lintを実行 (エラーが発生しても続行)
         run: poetry run flake8 .
