@@ -3,8 +3,8 @@ name: Python CI
 on:
   push:
     branches:
-      - work_1005_1045
-  # 他のイベントを追加する場合は、以下を参考にしてください。
+      - work_1005_1050
+  # 他のイベントを追加する場合は、以下のコメントアウトを解除し、必要に応じて設定してください。
   # pull_request:
   #   branches:
   #     - main
@@ -19,54 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10 # ジョブのタイムアウトを10分に設定
     permissions:
-      contents: write # アーティファクトをアップロードするために必要
-    steps:
-      - name: Checkout repository # リポジリをチェックアウト
-        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-        with:
-          persist-credentials: false # 認証情報を永続化しない
+      contents: read # lintエラー修正: ジョブレベルの最小権限を設定
 
-      - name: Set up Python # Python環境をセットアップ
-        id: setup-python # このステップにIDを設定
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.13" # Python 3.13を使用
-
-      - name: Install Poetry # Poetryをインストール
-        run: pip install poetry
-
-      - name: Cache Poetry dependencies # Poetryの依存関係をキャッシュ
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: ~/.cache/pypoetry # Poetryのキャッシュパス
-          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # OS, Pythonバージョン, poetry.lockのハッシュをキーに
-          restore-keys: |
-            ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry- # キャッシュが見つからない場合の復元キー
-
-      - name: Install project dependencies # プロジェクトの依存関係をインストール
-        run: poetry install --no-interaction --no-ansi # 仮想環境を作成せず、依存関係をインストール
-
-      # Run Linter (Ruff) ステップは、ruffコマンドが見つからないため削除されました。
-      # - name: Run Linter (Ruff)
-      #   run: poetry run ruff check .
-      #   continue-on-error: true
-
-      - name: Build package # プロジェクトをビルド
-        run: poetry build # Poetryを使ってパッケージをビルド
-
-      - name: Upload build artifacts # ビルドされたパッケージをアーティファクトとしてアップロード
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: dist # アーティファクト名
-          path: dist/ # ビルド成果物のパス
-
-  test:
-    name: Run Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10 # ジョブのタイムアウトを10分に設定
-    needs: build # buildジョブが成功した後に実行
-    permissions:
-      contents: read # リポジトリのコンテンツを読み取るための最小権限
     steps:
       - name: Checkout repository # リポジトリをチェックアウト
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -74,25 +28,78 @@ jobs:
           persist-credentials: false # 認証情報を永続化しない
 
       - name: Set up Python # Python環境をセットアップ
-        id: setup-python # このステップにIDを設定
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        id: setup-python # lintエラー修正: ステップIDを追加
         with:
-          python-version: "3.13" # Python 3.13を使用
+          python-version: "3.13" # pyproject.tomlで指定されているPythonバージョン
 
       - name: Install Poetry # Poetryをインストール
-        run: pip install poetry
+        run: |
+          pip install poetry
+
+      - name: Configure Poetry virtualenvs # Poetryが仮想環境を作成しないように設定 (CI環境向け)
+        run: poetry config virtualenvs.create false
 
       - name: Cache Poetry dependencies # Poetryの依存関係をキャッシュ
+        id: cache-poetry
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          path: ~/.cache/pypoetry # Poetryのキャッシュパス
-          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }} # OS, Pythonバージョン, poetry.lockのハッシュをキーに
+          path: ~/.cache/pypoetry/virtualenvs # Poetryのキャッシュパス
+          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry- # キャッシュが見つからない場合の復元キー
+            ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-
 
-      - name: Install project dependencies # プロジェクトの依存関係をインストール
-        run: poetry install --no-interaction --no-ansi # 仮想環境を作成せず、依存関係をインストール
+      - name: Install dependencies # 依存関係をインストール
+        run: poetry install --no-interaction --no-ansi
 
-      # Run Pytest ステップは、pytestコマンドが見つからないため削除されました。
-      # - name: Run Pytest
-      #   run: poetry run pytest tests/
+      - name: Install linters # リンターをインストール
+        run: poetry add flake8 --group dev --no-update
+
+      - name: Run Lint # Lintを実行 (エラーが発生しても続行)
+        run: poetry run flake8 .
+        continue-on-error: true # Lintのエラーが発生してもジョブを続行
+
+      - name: Build package # パッケージをビルド
+        run: poetry build
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10 # ジョブのタイムアウトを10分に設定
+    needs: build # ビルドジョブが成功した後に実行
+    permissions:
+      contents: read # lintエラー修正: ジョブレベルの最小権限を設定
+
+    steps:
+      - name: Checkout repository # リポジトリをチェックアウト
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false # 認証情報を永続化しない
+
+      - name: Set up Python # Python環境をセットアップ
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        id: setup-python # lintエラー修正: ステップIDを追加
+        with:
+          python-version: "3.13" # pyproject.tomlで指定されているPythonバージョン
+
+      - name: Install Poetry # Poetryをインストール
+        run: |
+          pip install poetry
+
+      - name: Configure Poetry virtualenvs # Poetryが仮想環境を作成しないように設定 (CI環境向け)
+        run: poetry config virtualenvs.create false
+
+      - name: Cache Poetry dependencies # Poetryの依存関係をキャッシュ
+        id: cache-poetry
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry/virtualenvs # Poetryのキャッシュパス
+          key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-
+
+      - name: Install dependencies # 依存関係をインストール
+        run: poetry install --no-interaction --no-ansi
+
+      - name: Run tests # テストを実行
+        run: poetry run python -m unittest discover tests
