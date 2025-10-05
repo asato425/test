@@ -1,0 +1,183 @@
+name: CI
+# このワークフローの名前。GitHub ActionsのUIに表示されます。
+
+on:
+  # ワークフローがトリガーされるイベントを定義します。
+  # pushイベントで、どのブランチでも実行されます。
+  push:
+    # branches:
+    #   - main
+    #   - develop
+    # 特定のブランチのみで実行したい場合は上記のように指定します。
+
+  # pull_request:
+  #   branches:
+  #     - main
+  #     - develop
+  # プルリクエストが作成または更新されたときに実行したい場合は上記を追加します。
+
+  # workflow_dispatch:
+  # ワークフローを手動で実行したい場合は上記を追加します。
+  # inputs:
+  #   logLevel:
+  #     description: 'Log level'
+  #     required: true
+  #     default: 'warning'
+  #     type: choice
+  #     options:
+  #       - info
+  #       - warning
+  #       - debug
+  # 手動実行時にパラメータを渡したい場合は上記のように指定します。
+
+jobs:
+  # ビルドジョブの定義
+  build:
+    # ジョブの表示名
+    name: Setup Environment and Install Dependencies
+    # ジョブが実行されるランナーのOS
+    runs-on: ubuntu-latest
+    # ジョブのタイムアウト時間（分）
+    timeout-minutes: 10
+    # ジョブに必要な権限を最小限に設定
+    permissions:
+      contents: read # リポジトリのコードを読み取る権限
+
+    # マトリクス戦略により、複数のPythonバージョンでジョブを実行
+    strategy:
+      matrix:
+        # プロジェクトがPythonバージョン >=3.13 を要求しているため、3.13以降のバージョンを指定します。
+        python-version: ["3.13"]
+
+    steps:
+      # リポジトリをチェックアウトするステップ
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          # 認証情報を永続化しない設定（セキュリティのため）
+          persist-credentials: false
+
+      # 指定されたPythonバージョンをセットアップするステップ
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Poetryをインストールするステップ
+      - name: Install Poetry
+        run: |
+          pip install poetry
+
+      # Poetryが仮想環境を作成しないように設定するステップ（CI環境向け）
+      - name: Configure Poetry to not create virtualenvs
+        run: |
+          poetry config virtualenvs.create false
+
+      # Poetryの依存関係をキャッシュするステップ
+      - name: Cache Poetry dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          # キャッシュするパス
+          path: ~/.cache/pypoetry
+          # キャッシュキー。Pythonバージョンとpoetry.lockファイルのハッシュを含む
+          key: python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          # キャッシュが見つからなかった場合に復元を試みるキーのプレフィックス
+          restore-keys: |
+            python-${{ matrix.python-version }}-poetry-
+
+      # プロジェクトの依存関係をインストールするステップ
+      - name: Install dependencies
+        run: |
+          poetry install --no-interaction --no-ansi
+
+      # flake8, black, pytestがpyproject.tomlに定義されていないため、一時的にpipでインストールします。
+      # 理想的には、これらのツールはpyproject.tomlの開発依存関係として定義し、
+      # poetry install でインストールされるべきです。
+      - name: Install Lint and Test tools (temporary fix)
+        run: |
+          pip install flake8 black pytest
+
+  # テストジョブの定義
+  test:
+    # ジョブの表示名
+    name: Run Lint and Tests
+    # このジョブは'build'ジョブが成功した後に実行されます
+    needs: build
+    # ジョブが実行されるランナーのOS
+    runs-on: ubuntu-latest
+    # ジョブのタイムアウト時間（分）
+    timeout-minutes: 10
+    # ジョブに必要な権限を最小限に設定
+    permissions:
+      contents: read # リポジトリのコードを読み取る権限
+
+    # マトリクス戦略により、複数のPythonバージョンでジョブを実行
+    strategy:
+      matrix:
+        # プロジェクトがPythonバージョン >=3.13 を要求しているため、3.13以降のバージョンを指定します。
+        python-version: ["3.13"]
+
+    steps:
+      # リポジトリをチェックアウトするステップ
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          # 認証情報を永続化しない設定（セキュリティのため）
+          persist-credentials: false
+
+      # 指定されたPythonバージョンをセットアップするステップ
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Poetryをインストールするステップ
+      - name: Install Poetry
+        run: |
+          pip install poetry
+
+      # Poetryが仮想環境を作成しないように設定するステップ（CI環境向け）
+      - name: Configure Poetry to not create virtualenvs
+        run: |
+          poetry config virtualenvs.create false
+
+      # Poetryの依存関係をキャッシュから復元するステップ
+      # buildジョブでインストールされた依存関係を再利用します
+      - name: Restore Poetry dependencies from cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          # キャッシュするパス
+          path: ~/.cache/pypoetry
+          # キャッシュキー。Pythonバージョンとpoetry.lockファイルのハッシュを含む
+          key: python-${{ matrix.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          # キャッシュが見つからなかった場合に復元を試みるキーのプレフィックス
+          restore-keys: |
+            python-${{ matrix.python-version }}-poetry-
+
+      # プロジェクトの依存関係をインストールするステップ
+      # キャッシュがヒットしなかった場合や、buildジョブでインストールされなかった場合に備えて再度実行
+      - name: Install dependencies (if not cached)
+        run: |
+          poetry install --no-interaction --no-ansi
+
+      # flake8, black, pytestがpyproject.tomlに定義されていないため、一時的にpipでインストールします。
+      # 理想的には、これらのツールはpyproject.tomlの開発依存関係として定義し、
+      # poetry install でインストールされるべきです。
+      - name: Install Lint and Test tools (temporary fix)
+        run: |
+          pip install flake8 black pytest
+
+      # Lint（flake8とblack）を実行するステップ
+      - name: Run Lint (flake8, black)
+        run: |
+          # flake8でコードスタイルをチェック
+          flake8 .
+          # blackでコードフォーマットをチェック（変更がないか確認）
+          black --check .
+        # Lintエラーが発生してもワークフローを続行する設定
+        continue-on-error: true
+
+      # pytestでテストを実行するステップ
+      - name: Run tests with pytest
+        run: |
+          pytest
