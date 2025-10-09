@@ -1,0 +1,92 @@
+name: Python CI with Poetry
+
+on:
+  push:
+    branches:
+      - work_1010_0042
+  # 他のイベントを追加する場合は、以下のコメントアウトを解除して設定してください。
+  # pull_request:
+  #   branches:
+  #     - main
+  # workflow_dispatch: # 手動実行を許可する場合
+
+permissions:
+  contents: read # リポジトリのコードを読み取るための最小限の権限
+
+jobs:
+  build:
+    name: Build and Lint
+    runs-on: ubuntu-latest # ジョブを実行するOS環境
+    timeout-minutes: 10 # ジョブの最大実行時間
+
+    steps:
+      - name: Checkout repository # リポジトリをチェックアウト
+        uses: actions/checkout@v4 # actions/checkoutアクションのバージョン4を使用
+        with:
+          persist-credentials: false # 認証情報を永続化しない
+
+      - name: Set up Python 3.13 # Python 3.13をセットアップ
+        uses: actions/setup-python@v5 # actions/setup-pythonアクションのバージョン5を使用
+        with:
+          python-version: '3.13' # 使用するPythonのバージョンを指定
+
+      - name: Install Poetry # Poetryをインストール
+        run: pip install poetry
+
+      - name: Configure Poetry for CI # CI環境向けにPoetryを設定（仮想環境を作成しない）
+        run: poetry config virtualenvs.create false
+
+      - name: Cache Poetry dependencies # Poetryの依存関係をキャッシュ
+        uses: actions/cache@v4 # actions/cacheアクションのバージョン4を使用
+        with:
+          path: ~/.cache/pypoetry # キャッシュするパス
+          key: python-3.13-poetry-${{ hashFiles('**/poetry.lock') }} # キャッシュキー（Pythonバージョンとpoetry.lockのハッシュを含む）
+          restore-keys: |
+            python-3.13-poetry-
+
+      - name: Install project dependencies # プロジェクトの依存関係をインストール
+        run: poetry install --no-interaction --no-ansi # Poetryを使って依存関係をインストール
+
+      - name: Install Flake8 # LintツールFlake8をインストール
+        run: pip install flake8
+
+      - name: Run Lint (Flake8) # Flake8でLintを実行
+        run: poetry run flake8 . # Poetryの仮想環境内でflake8を実行
+        continue-on-error: true # Lintエラーが発生してもジョブを続行
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest # ジョブを実行するOS環境
+    timeout-minutes: 10 # ジョブの最大実行時間
+    needs: build # buildジョブが成功した後にこのジョブを実行
+
+    steps:
+      - name: Checkout repository # リポジトリをチェックアウト
+        uses: actions/checkout@v4 # actions/checkoutアクションのバージョン4を使用
+        with:
+          persist-credentials: false # 認証情報を永続化しない
+
+      - name: Set up Python 3.13 # Python 3.13をセットアップ
+        uses: actions/setup-python@v5 # actions/setup-pythonアクションのバージョン5を使用
+        with:
+          python-version: '3.13' # 使用するPythonのバージョンを指定
+
+      - name: Install Poetry # Poetryをインストール
+        run: pip install poetry
+
+      - name: Configure Poetry for CI # CI環境向けにPoetryを設定（仮想環境を作成しない）
+        run: poetry config virtualenvs.create false
+
+      - name: Cache Poetry dependencies # Poetryの依存関係をキャッシュ
+        uses: actions/cache@v4 # actions/cacheアクションのバージョン4を使用
+        with:
+          path: ~/.cache/pypoetry # キャッシュするパス
+          key: python-3.13-poetry-${{ hashFiles('**/poetry.lock') }} # キャッシュキー（Pythonバージョンとpoetry.lockのハッシュを含む）
+          restore-keys: |
+            python-3.13-poetry-
+
+      - name: Install project dependencies # プロジェクトの依存関係をインストール
+        run: poetry install --no-interaction --no-ansi # Poetryを使って依存関係をインストール
+
+      - name: Run unit tests # unittestを使ってテストを実行
+        run: poetry run python -m unittest discover tests # Poetryの仮想環境内でunittestを実行
