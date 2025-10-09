@@ -1,136 +1,124 @@
 name: CI
 
-# ワークフローがトリガーされるイベントを設定します。
 on:
-  # mainブランチへのpushイベントでワークフローを実行します。
-  # 他のブランチやプルリクエストで実行したい場合は、以下のコメントアウトされた行を参考にしてください。
-  push:
-    branches:
-      - work_1009_1615
+  # このワークフローは、指定されたブランチへのpushイベントでトリガーされます。
+  # 他のイベント（例: pull_request, workflow_dispatch）を追加する場合は、以下のコメントアウトされた行を参考にしてください。
   # pull_request:
   #   branches:
   #     - main
-  # workflow_dispatch: # 手動でワークフローを実行するためのイベント
+  # workflow_dispatch:
+  push:
+    branches:
+      - work_1009_1619
 
-# ワークフロー全体の権限を設定します。必要最小限の権限を付与することが推奨されます。
+# ワークフロー全体のパーミッションを設定します。
+# 必要最低限の権限を付与することが推奨されます。
 permissions:
-  contents: read # リポジトリのコードを読み取るために必要です。
-  actions: read # アクションの情報を読み取るために必要です。
-
-# ジョブの並列実行を制御します。同じグループ名のジョブは同時に1つだけ実行されます。
-# concurrency:
-#   group: ${{ github.workflow }}-${{ github.ref }}
-#   cancel-in-progress: true
+  contents: read # リポジトリのコードをチェックアウトするために必要です。
 
 jobs:
   # ビルドと静的解析を行うジョブです。
   build:
-    name: ビルドと静的解析
-    # ジョブを実行するランナーのOSを指定します。
-    runs-on: ubuntu-latest
-    # ジョブのタイムアウト時間を設定します。
-    timeout-minutes: 10
-    # このジョブに必要な権限を最小限に設定します。
+    name: Build and Lint
+    runs-on: ubuntu-latest # ジョブを実行するOSを指定します。
+    timeout-minutes: 10 # ジョブの最大実行時間を設定します。
+    # ジョブレベルのパーミッションを設定します。リポジトリのコードを読み取るために必要です。
     permissions:
-      contents: write # リポジトリのコードを読み取り、アーティファクトをアップロードするために必要です。
-      actions: read   # actions/cacheでキャッシュを復元するために必要です。
+      contents: read
 
     steps:
       # リポジトリをチェックアウトします。
-      - name: リポジトリをチェックアウト
+      # persist-credentialsはセキュリティのためfalseに設定します。
+      - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
-          # 認証情報を永続化しない設定です。セキュリティ上の理由から推奨されます。
           persist-credentials: false
 
       # Python環境をセットアップします。
-      - name: Pythonをセットアップ
+      # pyproject.tomlのrequires-python設定に合わせてバージョンを指定し、idを付与して後続ステップで参照できるようにします。
+      - name: Set up Python 3.13
+        id: setup-python-env # このIDを使ってPythonのバージョンを参照します。
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          # pyproject.tomlで指定されているPythonバージョンに合わせます。
           python-version: "3.13"
 
-      # Poetryのキャッシュを復元または保存します。
-      - name: Poetryキャッシュを復元
+      # Poetryをインストールします。
+      - name: Install Poetry
+        run: pip install poetry==1.8.2 # 特定のバージョンを指定することを推奨します。
+
+      # Poetryの依存関係をキャッシュします。
+      # poetry.lockファイルのハッシュとsetup-python-envステップの出力であるPythonバージョンをキーに含めることで、
+      # 依存関係やPythonバージョンの変更時にキャッシュを更新します。
+      - name: Cache Poetry dependencies
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
-          # キャッシュするパスを指定します。
           path: ~/.cache/pypoetry
-          # キャッシュキーを生成します。Pythonバージョンとpoetry.lockのハッシュを含めることで、依存関係の変更時にキャッシュが更新されます。
-          # matrix戦略を使用していないため、python-versionを直接指定します。
-          key: python-3.13-poetry-${{ hashFiles('**/poetry.lock') }}
-          # キャッシュが見つからなかった場合に、このプレフィックスで始まる既存のキャッシュを復元します。
+          key: ${{ runner.os }}-python-${{ steps.setup-python-env.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            python-3.13-poetry-
+            ${{ runner.os }}-python-${{ steps.setup-python-env.outputs.python-version }}-poetry-
 
-      # Poetryを使って依存関係をインストールします。
-      - name: 依存関係をインストール
+      # プロジェクトの依存関係をインストールします。
+      # --no-interactionと--no-ansiはCI環境での実行に適しています。
+      - name: Install dependencies
         run: poetry install --no-interaction --no-ansi
 
-      # Blackを使ってコードのフォーマットチェックを行います。
-      - name: コードのフォーマットチェック (Black)
-        run: poetry run black --check .
-        # フォーマットエラーが発生してもジョブを続行します。
-        continue-on-error: true
-
-      # Flake8を使って静的解析を行います。
-      - name: 静的解析 (Flake8)
+      # Flake8を使ってコードのスタイルチェックと静的解析を行います。
+      # continue-on-error: trueを設定することで、Lintエラーが発生しても後続のステップが実行されます。
+      - name: Run Flake8 Lint
         run: poetry run flake8 .
-        # 静的解析エラーが発生してもジョブを続行します。
         continue-on-error: true
 
-      # Poetryを使ってパッケージをビルドします。
-      - name: パッケージをビルド
-        run: poetry build
-
-      # ビルドされた成果物（distディレクトリ）をGitHub Actionsのアーティファクトとしてアップロードします。
-      - name: ビルド成果物をアップロード
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: dist
-          path: dist/
+      # Blackを使ってコードのフォーマットチェックを行います。
+      # --checkオプションで変更を加えずにフォーマット違反を検出します。
+      # continue-on-error: trueを設定することで、フォーマットエラーが発生しても後続のステップが実行されます。
+      - name: Run Black Formatter Check
+        run: poetry run black --check .
+        continue-on-error: true
 
   # テストを実行するジョブです。
   test:
-    name: テストの実行
-    # ジョブを実行するランナーのOSを指定します。
-    runs-on: ubuntu-latest
-    # ジョブのタイムアウト時間を設定します。
-    timeout-minutes: 10
-    # buildジョブが成功した後にこのジョブを実行します。
-    needs: build
-    # このジョブに必要な権限を最小限に設定します。
+    name: Run Tests
+    runs-on: ubuntu-latest # ジョブを実行するOSを指定します。
+    timeout-minutes: 10 # ジョブの最大実行時間を設定します。
+    needs: build # buildジョブが成功した後にこのジョブを実行します。
+    # ジョブレベルのパーミッションを設定します。リポジトリのコードを読み取るために必要です。
     permissions:
-      contents: read # リポジトリのコードを読み取るために必要です。
-      actions: read   # actions/cacheでキャッシュを復元するために必要です。
+      contents: read
 
     steps:
       # リポジトリをチェックアウトします。
-      - name: リポジトリをチェックアウト
+      - name: Checkout repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
           persist-credentials: false
 
       # Python環境をセットアップします。
-      - name: Pythonをセットアップ
+      # idを付与して後続ステップで参照できるようにします。
+      - name: Set up Python 3.13
+        id: setup-python-env # このIDを使ってPythonのバージョンを参照します。
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.13"
 
-      # Poetryのキャッシュを復元または保存します。
-      - name: Poetryキャッシュを復元
+      # Poetryをインストールします。
+      - name: Install Poetry
+        run: pip install poetry==1.8.2
+
+      # Poetryの依存関係をキャッシュします。
+      # poetry.lockファイルのハッシュとsetup-python-envステップの出力であるPythonバージョンをキーに含めることで、
+      # 依存関係やPythonバージョンの変更時にキャッシュを更新します。
+      - name: Cache Poetry dependencies
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/pypoetry
-          # matrix戦略を使用していないため、python-versionを直接指定します。
-          key: python-3.13-poetry-${{ hashFiles('**/poetry.lock') }}
+          key: ${{ runner.os }}-python-${{ steps.setup-python-env.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            python-3.13-poetry-
+            ${{ runner.os }}-python-${{ steps.setup-python-env.outputs.python-version }}-poetry-
 
-      # Poetryを使って依存関係をインストールします。
-      - name: 依存関係をインストール
+      # プロジェクトの依存関係をインストールします。
+      - name: Install dependencies
         run: poetry install --no-interaction --no-ansi
 
-      # unittestを使ってテストを実行します。
-      - name: テストを実行
+      # unittestを使ってプロジェクトのテストを実行します。
+      - name: Run Unit Tests
         run: poetry run python -m unittest discover tests
