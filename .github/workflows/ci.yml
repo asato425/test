@@ -8,8 +8,6 @@ on:
   #     - main
   # workflow_dispatch:
   push:
-    branches:
-      - work_1009_1619
 
 # ワークフロー全体のパーミッションを設定します。
 # 必要最低限の権限を付与することが推奨されます。
