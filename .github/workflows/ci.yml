@@ -2,116 +2,132 @@ name: CI
 
 # ワークフローがトリガーされるイベントを定義します。
 on:
-  # 'work_1009_1607' ブランチへのプッシュ時にワークフローを実行します。
+  # 'work_1009_1611' ブランチへのプッシュ時にワークフローを実行します。
   push:
     branches:
-      - work_1009_1607
-  # 他のイベントを追加する場合は、以下のコメントアウトを解除して使用してください。
+      - work_1009_1611
+  # その他のイベントを追加する場合は、以下のコメントアウトを解除して使用してください。
   # pull_request:
   #   branches:
   #     - main
-  # workflow_dispatch: # 手動でワークフローを実行するためのイベント
+  # workflow_dispatch: # 手動でワークフローを実行するためのトリガー
+
+# ワークフロー全体にわたるデフォルトのパーミッションを設定します。
+# 必要最低限の権限を設定することでセキュリティを強化します。
+permissions:
+  contents: read # リポジトリのコードを読み取る権限
 
 # ワークフローに含まれるジョブを定義します。
 jobs:
-  # ビルドとLintチェックを行うジョブです。
+  # ビルドとLintチェックを行うジョブ
   build:
     name: ビルドとLint
-    # ジョブを実行するランナーのOSを指定します。
-    runs-on: ubuntu-latest
-    # ジョブの実行に必要な最小限の権限を設定します。
+    # ジョブに必要なパーミッションを明示的に設定します。
     permissions:
-      contents: read
-    # ジョブのタイムアウト時間を設定します。
+      contents: read # リポジトリのコードを読み取る権限
+    # ジョブが実行されるランナーのOSを指定します。
+    runs-on: ubuntu-latest
+    # ジョブの最大実行時間を設定します。
     timeout-minutes: 10
-    # ジョブのステップを定義します。
+
     steps:
-      # リポジトリのコードをチェックアウトします。
-      - name: コードのチェックアウト
+      # リポジトリをチェックアウトするステップ
+      - name: リポジトリをチェックアウト
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-        # persist-credentials を false に設定し、セキュリティを強化します。
         with:
+          # persist-credentials を false に設定し、認証情報を永続化しないようにします。
           persist-credentials: false
 
-      # Python環境をセットアップします。
-      - name: Pythonのセットアップ
-        id: setup-python # このステップにIDを追加し、出力を参照できるようにします。
+      # Python環境をセットアップするステップ
+      - name: Pythonをセットアップ
+        id: setup-python # このステップにIDを追加し、後続のステップで出力を参照できるようにします。
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: "3.13" # pyproject.toml に記載のPythonバージョンに合わせます。
+          # pyproject.toml の requires-python に基づき、Python 3.13 を指定します。
+          python-version: "3.13"
 
-      # Poetryをインストールします。
-      - name: Poetryのインストール
+      # Poetryをインストールするステップ
+      - name: Poetryをインストール
         run: pip install poetry
 
-      # Poetryの依存関係をキャッシュします。
-      - name: Poetry依存関係のキャッシュ
+      # Poetryの依存関係キャッシュを復元するステップ
+      - name: Poetryキャッシュを復元
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
+          # キャッシュするパスを指定します。
           path: ~/.cache/pypoetry
-          # キャッシュキーはPythonバージョンとpoetry.lockファイルのハッシュを含めます。
+          # キャッシュキーを定義します。Pythonバージョンとpoetry.lockのハッシュを含めることで、
+          # 依存関係が変更された場合にのみキャッシュが再生成されます。
           key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          # キャッシュが見つからなかった場合の復元キーを設定します。
+          # キャッシュが見つからなかった場合に、このキープレフィックスでキャッシュを検索します。
           restore-keys: |
             ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-
 
-      # プロジェクトの依存関係をインストールします。
-      - name: 依存関係のインストール
+      # プロジェクトの依存関係をインストールするステップ
+      - name: 依存関係をインストール
+        # --no-interaction: 対話モードを無効化
+        # --no-ansi: ANSI出力コードを無効化
         run: poetry install --no-interaction --no-ansi
 
-      # Flake8を使ってLintチェックを実行します。
-      - name: Flake8でLintチェック
+      # Lintチェックを実行するステップ (flake8)
+      - name: Lintを実行 (flake8)
+        # flake8 を Poetry の仮想環境内で実行します。
         run: poetry run flake8 .
-        # Lintエラーが発生してもジョブを続行します。
+        # Lintエラーが発生してもジョブを失敗させずに続行します。
         continue-on-error: true
 
-  # テストを実行するジョブです。
+  # テストを実行するジョブ
   test:
     name: テスト
-    # ジョブを実行するランナーのOSを指定します。
-    runs-on: ubuntu-latest
-    # このジョブは 'build' ジョブが成功した場合にのみ実行されます。
-    needs: build
-    # ジョブの実行に必要な最小限の権限を設定します。
+    # ジョブに必要なパーミッションを明示的に設定します。
     permissions:
-      contents: read
-    # ジョブのタイムアウト時間を設定します。
+      contents: read # リポジトリのコードを読み取る権限
+    # ジョブが実行されるランナーのOSを指定します。
+    runs-on: ubuntu-latest
+    # ジョブの最大実行時間を設定します。
     timeout-minutes: 10
-    # ジョブのステップを定義します。
+
     steps:
-      # リポジトリのコードをチェックアウトします。
-      - name: コードのチェックアウト
+      # リポジトリをチェックアウトするステップ
+      - name: リポジトリをチェックアウト
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-        # persist-credentials を false に設定し、セキュリティを強化します。
         with:
+          # persist-credentials を false に設定し、認証情報を永続化しないようにします。
           persist-credentials: false
 
-      # Python環境をセットアップします。
-      - name: Pythonのセットアップ
-        id: setup-python # このステップにIDを追加し、出力を参照できるようにします。
+      # Python環境をセットアップするステップ
+      - name: Pythonをセットアップ
+        id: setup-python # このステップにIDを追加し、後続のステップで出力を参照できるようにします。
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
-          python-version: "3.13" # pyproject.toml に記載のPythonバージョンに合わせます。
+          # pyproject.toml の requires-python に基づき、Python 3.13 を指定します。
+          python-version: "3.13"
 
-      # Poetryをインストールします。
-      - name: Poetryのインストール
+      # Poetryをインストールするステップ
+      - name: Poetryをインストール
         run: pip install poetry
 
-      # Poetryの依存関係をキャッシュします。
-      - name: Poetry依存関係のキャッシュ
+      # Poetryの依存関係キャッシュを復元するステップ
+      - name: Poetryキャッシュを復元
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
+          # キャッシュするパスを指定します。
           path: ~/.cache/pypoetry
-          # キャッシュキーはPythonバージョンとpoetry.lockファイルのハッシュを含めます。
+          # キャッシュキーを定義します。Pythonバージョンとpoetry.lockのハッシュを含めることで、
+          # 依存関係が変更された場合にのみキャッシュが再生成されます。
           key: ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          # キャッシュが見つからなかった場合の復元キーを設定します。
+          # キャッシュが見つからなかった場合に、このキープレフィックスでキャッシュを検索します。
           restore-keys: |
             ${{ runner.os }}-python-${{ steps.setup-python.outputs.python-version }}-poetry-
 
-      # プロジェクトの依存関係をインストールします。
-      - name: 依存関係のインストール
+      # プロジェクトの依存関係をインストールするステップ
+      - name: 依存関係をインストール
+        # --no-interaction: 対話モードを無効化
+        # --no-ansi: ANSI出力コードを無効化
         run: poetry install --no-interaction --no-ansi
 
-      # unittestを使ってテストを実行します。
-      - name: テストの実行
+      # テストを実行するステップ (unittest)
+      - name: テストを実行
+        # unittest を Poetry の仮想環境内で実行します。
+        # discover サブコマンドを使用して 'tests' ディレクトリ内のテストを自動的に検出します。
         run: poetry run python -m unittest discover tests
