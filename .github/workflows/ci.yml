@@ -8,7 +8,7 @@ on:
   # pull_request:
   #   branches:
   #     - main
-  # workflow_dispatch: # 手動実行を許可する場合
+  workflow_dispatch: # 手動実行を許可する場合
 
 permissions:
   contents: read # リポジトリのコードを読み取るための最小限の権限
