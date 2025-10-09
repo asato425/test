@@ -1,12 +1,7 @@
 name: CI
 
 on:
-  # このワークフローは、指定されたブランチへのpushイベントでトリガーされます。
-  # 他のイベント（例: pull_request, workflow_dispatch）を追加する場合は、以下のコメントアウトされた行を参考にしてください。
-  # pull_request:
-  #   branches:
-  #     - main
-  # workflow_dispatch:
+  workflow_dispatch:
   push:
 
 # ワークフロー全体のパーミッションを設定します。
