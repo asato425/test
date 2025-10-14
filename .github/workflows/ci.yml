@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  # このワークフローは 'work_1015_0052' ブランチへのpush時に実行されます。
+  # 他のイベントを追加する場合は、以下のコメントアウトされた例を参考にしてください。
+  # pull_request:
+  #   branches:
+  #     - main
+  # workflow_dispatch: # 手動実行を許可する
+  push:
+    branches:
+      - work_1015_0052
+
+# ワークフロー全体のデフォルト権限を設定します。
+# ジョブレベルでより具体的な権限を設定することで、この設定を上書きまたは拡張できます。
+permissions:
+  contents: read
+
+jobs:
+  # ビルドとLintを実行するジョブです。
+  build:
+    name: ビルドとLint
+    runs-on: ubuntu-latest
+    # ジョブのタイムアウトを10分に設定します。
+    timeout-minutes: 10
+    # このジョブに必要な最小限の権限を設定します。
+    permissions:
+      contents: read
+
+    steps:
+      # リポジトリをチェックアウトします。
+      # persist-credentials: false は、認証情報が後続のステップに漏洩しないようにします。
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      # Python環境をセットアップします。プロジェクトのpyproject.tomlとpoetry.lockに基づき3.13を指定します。
+      - name: Pythonをセットアップ
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+
+      # Poetryをインストールします。
+      - name: Poetryをインストール
+        run: pip install poetry
+
+      # Poetryの依存関係キャッシュを復元または保存します。
+      # キーにはPythonバージョンとpoetry.lockファイルのハッシュを含めることで、
+      # 依存関係が変更された場合にのみ再インストールが実行されます。
+      - name: Poetryキャッシュを復元
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry
+          key: python-3.13-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            python-3.13-poetry-
+
+      # Poetryを使ってプロジェクトの依存関係をインストールします。
+      # --no-interaction と --no-ansi はCI環境での非対話的な実行に適しています。
+      - name: 依存関係をインストール
+        run: poetry install --no-interaction --no-ansi
+
+      # Flake8を使ってLintを実行します。
+      # continue-on-error: true を指定することで、Lintエラーが発生してもワークフローが失敗せず、
+      # 後続のステップ（例: テスト）が実行され、結果を確認できます。
+      - name: Lintを実行 (Flake8)
+        run: poetry run flake8 .
+        continue-on-error: true
+
+  # テストを実行するジョブです。
+  # このジョブは 'build' ジョブが成功した後に実行されます。
+  test:
+    name: テスト
+    runs-on: ubuntu-latest
+    # ジョブのタイムアウトを10分に設定します。
+    timeout-minutes: 10
+    needs: build
+    # このジョブに必要な最小限の権限を設定します。
+    permissions:
+      contents: read
+
+    steps:
+      # リポジトリをチェックアウトします。
+      - name: リポジトリをチェックアウト
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      # Python環境をセットアップします。
+      - name: Pythonをセットアップ
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+
+      # Poetryをインストールします。
+      - name: Poetryをインストール
+        run: pip install poetry
+
+      # Poetryの依存関係キャッシュを復元または保存します。
+      - name: Poetryキャッシュを復元
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry
+          key: python-3.13-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            python-3.13-poetry-
+
+      # Poetryを使ってプロジェクトの依存関係をインストールします。
+      - name: 依存関係をインストール
+        run: poetry install --no-interaction --no-ansi
+
+      # Pytestを使ってテストを実行します。
+      - name: テストを実行 (Pytest)
+        run: poetry run pytest
