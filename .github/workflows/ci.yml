@@ -50,8 +50,16 @@ jobs:
           # Poetryの依存関係をキャッシュ
           cache: "poetry"
 
-      # Poetryの仮想環境作成を無効化し、依存関係をインストール
-      - name: Install dependencies
+      # Poetryをインストール
+      - name: Install Poetry
+        run: |
+          # pipを最新にアップグレード
+          python -m pip install --upgrade pip
+          # Poetryをインストール
+          pip install poetry
+
+      # Poetryの仮想環境作成を無効化し、プロジェクトの依存関係をインストール
+      - name: Install project dependencies
         run: |
           # CI環境で仮想環境を作成しないように設定
           poetry config virtualenvs.create false
@@ -100,8 +108,16 @@ jobs:
           # Poetryの依存関係をキャッシュ
           cache: "poetry"
 
-      # Poetryの仮想環境作成を無効化し、依存関係をインストール
-      - name: Install dependencies
+      # Poetryをインストール
+      - name: Install Poetry
+        run: |
+          # pipを最新にアップグレード
+          python -m pip install --upgrade pip
+          # Poetryをインストール
+          pip install poetry
+
+      # Poetryの仮想環境作成を無効化し、プロジェクトの依存関係をインストール
+      - name: Install project dependencies
         run: |
           # CI環境で仮想環境を作成しないように設定
           poetry config virtualenvs.create false
