@@ -48,11 +48,11 @@ jobs:
           cache: 'poetry'
 
       # ステップ3: Poetryのインストール
+      # shellcheckのLintエラー(SC2086)が複数回発生したため、カスタムスクリプトによるインストールから専用のアクション利用に戻します。
+      # これにより、CI環境での仮想環境作成を無効化する設定もアクションのパラメータで行うため、Lintエラーの原因となっていた 'poetry config' コマンドが不要になります。
       - name: Install Poetry
-        # snok/install-poetryのv1を使用
         uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
         with:
-          # CI環境では仮想環境をプロジェクト内に作成しない設定を推奨
           virtualenvs-create: false
 
       # ステップ4: 依存関係のインストール
@@ -92,6 +92,7 @@ jobs:
           cache: 'poetry'
 
       # ステップ3: Poetryのインストール
+      # shellcheckのLintエラー(SC2086)が複数回発生したため、カスタムスクリプトによるインストールから専用のアクション利用に戻します。
       - name: Install Poetry
         uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
         with:
