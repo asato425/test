@@ -20,7 +20,6 @@ jobs:
   # ビルドジョブ: プロジェクトが正常にビルドできることを確認します
   build:
     name: ビルド
-    # ghalintのポリシーエラー(job should have permissions)を修正するため、ジョブ単位で権限を設定します
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -40,9 +39,12 @@ jobs:
           python-version: "3.13"
 
       # ステップ3: Poetryをインストールします
-      - name: Poetryのインストール
-        run: |
-          pip install poetry
+      # 以前の実行で発生した `poetry` コマンドが見つからないエラーを修正するため、
+      # pipによるインストールから専用のアクション(snok/install-poetry)に変更し、PATHを確実に通します。
+      - name: Poetryのインストールと設定
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: "1.8.2"
 
       # ステップ4: パッケージをビルドします
       # poetry buildコマンドでwheelとsdistを生成します
@@ -52,7 +54,6 @@ jobs:
   # テストジョブ: 静的解析とユニットテストを実行します
   test:
     name: 静的解析とテスト
-    # ghalintのポリシーエラー(job should have permissions)を修正するため、ジョブ単位で権限を設定します
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -73,9 +74,12 @@ jobs:
           cache: "poetry"
 
       # ステップ3: Poetryをインストールします
-      - name: Poetryのインストール
-        run: |
-          pip install poetry
+      # 以前の実行で発生した `poetry` コマンドが見つからないエラーを修正するため、
+      # pipによるインストールから専用のアクション(snok/install-poetry)に変更し、PATHを確実に通します。
+      - name: Poetryのインストールと設定
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: "1.8.2"
 
       # ステップ4: 依存関係をインストールします
       # キャッシュがヒットした場合、このステップは高速に完了します
