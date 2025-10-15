@@ -48,13 +48,13 @@ jobs:
           cache: 'poetry'
 
       # ステップ3: Poetryのインストール
-      # 過去の試行でpoetryコマンドが見つからないエラーが再発したため、pipx経由でのインストールに変更します。
-      # pipxはPython製CLIツールのインストールと管理に推奨される方法であり、PATHの競合問題を回避しやすくなります。
-      - name: Install Poetry using pipx
+      # shellcheckのLintエラー(SC2086)が繰り返し発生しているため、リダイレクト先の $GITHUB_PATH をダブルクォートで囲むことで対処します。
+      # これにより、意図しないグロビングや単語の分割を防ぎ、Lintエラーを解消します。
+      - name: Install Poetry via pip
         run: |
-          python -m pip install --user pipx
-          python -m pipx ensurepath
-          pipx install poetry
+          python -m pip install --upgrade pip
+          python -m pip install poetry
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       # ステップ4: 依存関係のインストール
       - name: Install dependencies
@@ -95,12 +95,12 @@ jobs:
           cache: 'poetry'
 
       # ステップ3: Poetryのインストール
-      # 過去の試行でpoetryコマンドが見つからないエラーが再発したため、pipx経由でのインストールに変更します。
-      - name: Install Poetry using pipx
+      # ビルドジョブと同様に、shellcheckのLintエラー(SC2086)を修正します。
+      - name: Install Poetry via pip
         run: |
-          python -m pip install --user pipx
-          python -m pipx ensurepath
-          pipx install poetry
+          python -m pip install --upgrade pip
+          python -m pip install poetry
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       # ステップ4: 依存関係のインストール
       - name: Install dependencies
