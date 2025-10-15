@@ -1,0 +1,105 @@
+name: Python CI
+
+on:
+  push:
+    branches:
+      - work_1016_0122
+  # 他のイベントを追加する方法:
+  # pull_request:
+  #   branches:
+  #     - main
+  # workflow_dispatch: # 手動実行を許可
+
+jobs:
+  build:
+    name: Build and Lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # リポジトリのコードを読み取るために必要
+    timeout-minutes: 10 # ジョブのタイムアウトを10分に設定
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false # プッシュ権限が不要なためfalseに設定
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13' # プロジェクトで指定されたPythonバージョン
+
+      - name: Install Poetry
+        # Poetryのバージョンを固定してインストール
+        run: |
+          pip install poetry==1.8.2
+
+      - name: Configure Poetry for CI
+        # CI環境で仮想環境を作成しないように設定し、システムPythonを使用
+        run: poetry config virtualenvs.create false
+
+      - name: Cache Poetry downloaded packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry # Poetryのダウンロード済みパッケージキャッシュパス
+          # キャッシュキーはOS, Pythonバージョン, poetry.lockのハッシュを含む
+          key: ${{ runner.os }}-python-3.13-poetry-${{ hashFiles('**/poetry.lock') }}
+          # キャッシュが見つからない場合に、より一般的なキーで復元を試みる
+          restore-keys: |
+            ${{ runner.os }}-python-3.13-poetry-
+
+      - name: Install project dependencies
+        # プロジェクトの依存関係をインストール。開発依存関係もインストールされると仮定
+        # (例: ruffがpyproject.tomlの[tool.poetry.group.dev.dependencies]に定義されている場合)
+        run: poetry install --no-interaction --no-ansi --with dev
+
+      - name: Run linter (Ruff)
+        # Ruffでコードの静的解析を実行
+        run: poetry run ruff check .
+        continue-on-error: true # Lintエラーが発生してもジョブを続行
+
+  tests:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: build # ビルドジョブが成功した後に実行
+    permissions:
+      contents: read # リポジトリのコードを読み取るために必要
+    timeout-minutes: 10 # ジョブのタイムアウトを10分に設定
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false # プッシュ権限が不要なためfalseに設定
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13' # プロジェクトで指定されたPythonバージョン
+
+      - name: Install Poetry
+        # Poetryのバージョンを固定してインストール
+        run: |
+          pip install poetry==1.8.2
+
+      - name: Configure Poetry for CI
+        # CI環境で仮想環境を作成しないように設定し、システムPythonを使用
+        run: poetry config virtualenvs.create false
+
+      - name: Cache Poetry downloaded packages
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pypoetry # Poetryのダウンロード済みパッケージキャッシュパス
+          # キャッシュキーはOS, Pythonバージョン, poetry.lockのハッシュを含む
+          key: ${{ runner.os }}-python-3.13-poetry-${{ hashFiles('**/poetry.lock') }}
+          # キャッシュが見つからない場合に、より一般的なキーで復元を試みる
+          restore-keys: |
+            ${{ runner.os }}-python-3.13-poetry-
+
+      - name: Install project dependencies
+        # プロジェクトの依存関係をインストール
+        run: poetry install --no-interaction --no-ansi
+
+      - name: Run unit tests
+        # unittestフレームワークを使用してテストを実行
+        run: poetry run python tests/test_hello.py
