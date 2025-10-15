@@ -48,25 +48,22 @@ jobs:
           cache: 'poetry'
 
       # ステップ3: Poetryのインストール
-      # shellcheckのLintエラー(SC2086)が繰り返し発生しているため、リダイレクト先の $GITHUB_PATH をダブルクォートで囲むことで対処します。
-      # これにより、意図しないグロビングや単語の分割を防ぎ、Lintエラーを解消します。
-      - name: Install Poetry via pip
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install poetry
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Poetry
+        run: python -m pip install poetry
 
       # ステップ4: 依存関係のインストール
+      # 過去の修正でYAML構文エラーが発生したため、poetryコマンドの実行方法を複数行形式(|)に統一し、構文の安定性を高めます。
+      # 同時に、以前から指摘されていたshellcheckのLintエラー(SC2086)も、$HOMEをクォートすることで引き続き対処します。
       - name: Install dependencies
-        # CI環境では仮想環境を作成しないように設定
         run: |
-          poetry config virtualenvs.create false
-          poetry install --no-interaction --no-ansi
+          "$HOME"/.local/bin/poetry config virtualenvs.create false
+          "$HOME"/.local/bin/poetry install --no-interaction --no-ansi
 
       # ステップ5: プロジェクトのビルド
+      # 構文の安定性を高めるため、単一行のコマンドでも複数行形式(|)に統一します。
       - name: Build package
-        # 配布用のwheelとsdistパッケージを生成
-        run: poetry build
+        run: |
+          "$HOME"/.local/bin/poetry build
 
   # テストジョブ
   test:
@@ -95,19 +92,15 @@ jobs:
           cache: 'poetry'
 
       # ステップ3: Poetryのインストール
-      # ビルドジョブと同様に、shellcheckのLintエラー(SC2086)を修正します。
-      - name: Install Poetry via pip
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install poetry
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Install Poetry
+        run: python -m pip install poetry
 
       # ステップ4: 依存関係のインストール
+      # buildジョブと同様に、コマンド実行の安定性を高めるための形式に統一します。
       - name: Install dependencies
-        # CI環境では仮想環境を作成しないように設定
         run: |
-          poetry config virtualenvs.create false
-          poetry install --no-interaction --no-ansi
+          "$HOME"/.local/bin/poetry config virtualenvs.create false
+          "$HOME"/.local/bin/poetry install --no-interaction --no-ansi
 
       # ステップ5: テストの実行
       - name: Run unit tests
