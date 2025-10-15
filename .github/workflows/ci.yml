@@ -39,10 +39,9 @@ jobs:
           python-version: "3.13"
 
       # ステップ3: Poetryをインストールします
-      # 以前の実行で発生したshellcheckのLintエラー(SC2086)と、過去の複数回の実行で発生した
-      # `poetry` コマンドが見つからないエラーを根本的に解決するため、
-      # 手動でのインストールスクリプトから、Poetryインストール専用の `snok/install-poetry` アクションに戻します。
-      # このアクションはPoetryのインストールとPATHの設定を確実に行うため、最も安定的です。
+      # 以前の実行で手動のインストールスクリプトを使用した際にshellcheckのLintエラー(SC2086)が繰り返し発生しました。
+      # このLintエラーと、過去に何度も発生した `poetry not found` エラーを同時に解決するため、
+      # PoetryのインストールとPATH設定を自動で行う、より安定した専用のアクション `snok/install-poetry` に変更します。
       - name: Poetryのインストール
         uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
         with:
@@ -76,10 +75,9 @@ jobs:
           cache: "poetry"
 
       # ステップ3: Poetryをインストールします
-      # 以前の実行で発生したshellcheckのLintエラー(SC2086)と、過去の複数回の実行で発生した
-      # `poetry` コマンドが見つからないエラーを根本的に解決するため、
-      # 手動でのインストールスクリプトから、Poetryインストール専用の `snok/install-poetry` アクションに戻します。
-      # このアクションはPoetryのインストールとPATHの設定を確実に行うため、最も安定的です。
+      # 以前の実行で手動のインストールスクリプトを使用した際にshellcheckのLintエラー(SC2086)が繰り返し発生しました。
+      # このLintエラーと、過去に何度も発生した `poetry not found` エラーを同時に解決するため、
+      # PoetryのインストールとPATH設定を自動で行う、より安定した専用のアクション `snok/install-poetry` に変更します。
       - name: Poetryのインストール
         uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
         with:
