@@ -1,0 +1,107 @@
+# ワークフローの名前
+name: Python CI
+
+# ワークフローが実行されるイベントを定義
+on:
+  # work_1016_0035 ブランチへのプッシュ時に実行
+  push:
+    branches:
+      - "work_1016_0035"
+  # 他のイベントを追加する例：
+  # mainブランチへのプルリクエスト時にも実行
+  # pull_request:
+  #   branches: [ "main" ]
+  # 手動実行を許可
+  # workflow_dispatch:
+
+# ジョブの定義
+jobs:
+  # ビルドジョブ
+  build:
+    # ジョブの表示名
+    name: Build Project
+    # 実行環境の指定
+    runs-on: ubuntu-latest
+    # ジョブに与える権限を最小限に設定
+    permissions:
+      contents: read # リポジトリのコードをチェックアウトするために必要
+    # ジョブのタイムアウトを10分に設定
+    timeout-minutes: 10
+    # 実行するステップの定義
+    steps:
+      # ステップ1: リポジトリのコードをチェックアウト
+      - name: Checkout repository
+        # actions/checkoutのv4を使用
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          # CI/CDプロセスでGitの認証情報を永続化させないための設定
+          persist-credentials: false
+
+      # ステップ2: Python環境のセットアップ
+      - name: Set up Python
+        # actions/setup-pythonのv5を使用
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          # pyproject.tomlで指定されているPythonバージョンに合わせる
+          python-version: '3.13'
+          # Poetryの依存関係キャッシュを有効化
+          cache: 'poetry'
+
+      # ステップ3: Poetryのインストール
+      - name: Install Poetry
+        # snok/install-poetryのv1を使用
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          # CI環境では仮想環境をプロジェクト内に作成しない設定を推奨
+          virtualenvs-create: false
+
+      # ステップ4: 依存関係のインストール
+      - name: Install dependencies
+        # poetry.lockファイルに基づいて依存関係をインストール
+        run: poetry install --no-interaction --no-ansi
+
+      # ステップ5: プロジェクトのビルド
+      - name: Build package
+        # 配布用のwheelとsdistパッケージを生成
+        run: poetry build
+
+  # テストジョブ
+  test:
+    # ジョブの表示名
+    name: Run Tests
+    # 実行環境の指定
+    runs-on: ubuntu-latest
+    # ジョブに与える権限を最小限に設定
+    permissions:
+      contents: read # リポジトリのコードをチェックアウトするために必要
+    # ジョブのタイムアウトを10分に設定
+    timeout-minutes: 10
+    # 実行するステップの定義
+    steps:
+      # ステップ1: リポジトリのコードをチェックアウト
+      - name: Checkout repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+
+      # ステップ2: Python環境のセットアップ
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+          cache: 'poetry'
+
+      # ステップ3: Poetryのインストール
+      - name: Install Poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          virtualenvs-create: false
+
+      # ステップ4: 依存関係のインストール
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-ansi
+
+      # ステップ5: テストの実行
+      - name: Run unit tests
+        # プロジェクトで定義されているテストコマンドを実行
+        run: python -m unittest discover
