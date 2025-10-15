@@ -39,12 +39,11 @@ jobs:
           python-version: "3.13"
 
       # ステップ3: Poetryをインストールします
-      # 以前の実行で発生した `poetry` コマンドが見つからないエラーを修正するため、
-      # pipによるインストールから専用のアクション(snok/install-poetry)に変更し、PATHを確実に通します。
-      - name: Poetryのインストールと設定
-        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
-        with:
-          version: "1.8.2"
+      # 過去の実行で `poetry` コマンドが見つからないエラーが繰り返し発生したため、
+      # インストール方法を `pipx` を使ったより確実な方法に変更します。
+      - name: Poetryのインストール
+        run: |
+          pipx install poetry
 
       # ステップ4: パッケージをビルドします
       # poetry buildコマンドでwheelとsdistを生成します
@@ -74,12 +73,11 @@ jobs:
           cache: "poetry"
 
       # ステップ3: Poetryをインストールします
-      # 以前の実行で発生した `poetry` コマンドが見つからないエラーを修正するため、
-      # pipによるインストールから専用のアクション(snok/install-poetry)に変更し、PATHを確実に通します。
-      - name: Poetryのインストールと設定
-        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
-        with:
-          version: "1.8.2"
+      # 過去の実行で `poetry` コマンドが見つからないエラーが繰り返し発生したため、
+      # インストール方法を `pipx` を使ったより確実な方法に変更します。
+      - name: Poetryのインストール
+        run: |
+          pipx install poetry
 
       # ステップ4: 依存関係をインストールします
       # キャッシュがヒットした場合、このステップは高速に完了します
