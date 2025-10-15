@@ -47,22 +47,14 @@ jobs:
           # Poetryの依存関係キャッシュを有効化
           cache: 'poetry'
 
-      # ステップ3: Poetryのインストール
-      - name: Install Poetry
-        run: python -m pip install poetry
-
-      # ステップ4: 依存関係のインストール
-      # 過去の修正でYAML構文エラーが発生したため、poetryコマンドの実行方法を複数行形式(|)に統一し、構文の安定性を高めます。
-      # 同時に、以前から指摘されていたshellcheckのLintエラー(SC2086)も、$HOMEをクォートすることで引き続き対処します。
-      - name: Install dependencies
+      # ステップ3: 依存関係のインストールとビルド
+      # poetryコマンドがステップ間で認識されない問題が繰り返し発生しているため、
+      # poetryのインストールからビルドまでを単一のステップにまとめ、問題を回避します。
+      - name: Install dependencies and build
         run: |
+          python -m pip install poetry
           "$HOME"/.local/bin/poetry config virtualenvs.create false
           "$HOME"/.local/bin/poetry install --no-interaction --no-ansi
-
-      # ステップ5: プロジェクトのビルド
-      # 構文の安定性を高めるため、単一行のコマンドでも複数行形式(|)に統一します。
-      - name: Build package
-        run: |
           "$HOME"/.local/bin/poetry build
 
   # テストジョブ
@@ -91,18 +83,15 @@ jobs:
           python-version: '3.13'
           cache: 'poetry'
 
-      # ステップ3: Poetryのインストール
-      - name: Install Poetry
-        run: python -m pip install poetry
-
-      # ステップ4: 依存関係のインストール
-      # buildジョブと同様に、コマンド実行の安定性を高めるための形式に統一します。
+      # ステップ3: 依存関係のインストール
+      # ビルドジョブと同様に、poetryのインストールと依存関係の解決を単一ステップにまとめます。
       - name: Install dependencies
         run: |
+          python -m pip install poetry
           "$HOME"/.local/bin/poetry config virtualenvs.create false
           "$HOME"/.local/bin/poetry install --no-interaction --no-ansi
 
-      # ステップ5: テストの実行
+      # ステップ4: テストの実行
       - name: Run unit tests
         # プロジェクトで定義されているテストコマンドを実行
         run: python -m unittest discover
