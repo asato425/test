@@ -39,11 +39,14 @@ jobs:
           python-version: "3.13"
 
       # ステップ3: Poetryをインストールします
-      # 過去の実行で `poetry` コマンドが見つからないエラーが繰り返し発生したため、
-      # インストール方法を `pipx` を使ったより確実な方法に変更します。
+      # 以前の実行で発生したshellcheckのLintエラー(SC2086)と、過去の複数回の実行で発生した
+      # `poetry` コマンドが見つからないエラーを根本的に解決するため、
+      # 手動でのインストールスクリプトから、Poetryインストール専用の `snok/install-poetry` アクションに戻します。
+      # このアクションはPoetryのインストールとPATHの設定を確実に行うため、最も安定的です。
       - name: Poetryのインストール
-        run: |
-          pipx install poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: "1.8.2"
 
       # ステップ4: パッケージをビルドします
       # poetry buildコマンドでwheelとsdistを生成します
@@ -73,11 +76,14 @@ jobs:
           cache: "poetry"
 
       # ステップ3: Poetryをインストールします
-      # 過去の実行で `poetry` コマンドが見つからないエラーが繰り返し発生したため、
-      # インストール方法を `pipx` を使ったより確実な方法に変更します。
+      # 以前の実行で発生したshellcheckのLintエラー(SC2086)と、過去の複数回の実行で発生した
+      # `poetry` コマンドが見つからないエラーを根本的に解決するため、
+      # 手動でのインストールスクリプトから、Poetryインストール専用の `snok/install-poetry` アクションに戻します。
+      # このアクションはPoetryのインストールとPATHの設定を確実に行うため、最も安定的です。
       - name: Poetryのインストール
-        run: |
-          pipx install poetry
+        uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1.4.1
+        with:
+          version: "1.8.2"
 
       # ステップ4: 依存関係をインストールします
       # キャッシュがヒットした場合、このステップは高速に完了します
